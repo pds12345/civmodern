@@ -26,6 +26,9 @@ public class NodeConfigScreen extends AbstractConfigScreen {
     /** Feedback from the last handshake attempt, shown until the screen is closed. */
     private Component handshakeResult;
 
+    /** Set while the widgets are laid out, so the status text follows the handshake button. */
+    private int statusY;
+
     public NodeConfigScreen(CivMapConfig config, NodeApiClient nodeApi, Screen parent) {
         super(config, parent, Component.translatable("civmodern.screen.nodes.title"));
         this.nodeApi = nodeApi;
@@ -54,6 +57,14 @@ public class NodeConfigScreen extends AbstractConfigScreen {
             Component.translatable("civmodern.screen.nodes.borders"),
             this.config::isNodeOverlayBorders, this.config::setNodeOverlayBorders,
             Tooltip.create(Component.translatable("civmodern.screen.nodes.borders.tooltip")),
+            ToggleButton.DEFAULT_NARRATION));
+
+        offset += 24;
+
+        addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+            Component.translatable("civmodern.screen.nodes.grid"),
+            this.config::isNodeChunkGrid, this.config::setNodeChunkGrid,
+            Tooltip.create(Component.translatable("civmodern.screen.nodes.grid.tooltip")),
             ToggleButton.DEFAULT_NARRATION));
 
         offset += 24;
@@ -111,6 +122,7 @@ public class NodeConfigScreen extends AbstractConfigScreen {
         handshake.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.nodes.handshake.tooltip")));
         handshake.active = nodeApi != null && Minecraft.getInstance().getConnection() != null;
         addRenderableWidget(handshake);
+        this.statusY = offset + 26;
 
         offset += 48;
 
@@ -125,7 +137,6 @@ public class NodeConfigScreen extends AbstractConfigScreen {
         super.render(graphics, mouseX, mouseY, delta);
 
         // The status is live, so it is drawn rather than baked into a widget at init time.
-        int statusY = getBodyY() + 24 + 36 + 26;
         if (nodeApi != null) {
             graphics.drawCenteredString(this.font, nodeApi.statusLine(), this.width / 2, statusY, 0xFFFFFFFF);
         }

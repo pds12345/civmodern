@@ -17,11 +17,20 @@ import java.util.List;
  * chunk is yours, yellow where a protected chunk is somebody else's, and red wherever protection
  * has lapsed, friendly or not. Which node a chunk belongs to is carried by the border seams
  * rather than by its fill, and the node's controlling bastion is marked with a hollow square.
+ *
+ * <p>Inside a node the individual chunks are separated by a slim dashed grid, so a player can
+ * count chunks off a bastion without mistaking one of those lines for the edge of the node.
  */
 public final class NodeOverlayRenderer {
 
     /** Always fully opaque, whatever the fill opacity: the seams are what define the territory. */
     private static final int BORDER_COLOUR = 0xFF080B0E;
+
+    /**
+     * The chunk grid inside a node. Same ink as the seams but see-through and only ever a pixel
+     * wide, so an interior chunk edge can never be misread as the boundary of the node itself.
+     */
+    private static final int CHUNK_GRID_COLOUR = 0x66080B0E;
 
     // Status colours. Deliberately fixed rather than varied per node: the fill answers "can I
     // build here", and the seams answer "whose is it".
@@ -48,6 +57,12 @@ public final class NodeOverlayRenderer {
 
     /** Once chunks are this large a single pixel reads as a hairline, so thicken the seams. */
     private static final float THICK_BORDER_CHUNK_PIXELS = 16f;
+
+    /**
+     * Under this a dash and its gap are a pixel each, and the grid stops reading as a grid and
+     * starts reading as noise laid over the fill.
+     */
+    private static final float MIN_GRID_CHUNK_PIXELS = 8f;
 
     /** Under this the hollow square would collapse into a dot, so it is not drawn. */
     private static final float MIN_BASTION_CHUNK_PIXELS = 6f;
@@ -92,6 +107,12 @@ public final class NodeOverlayRenderer {
         boolean borders = config.isNodeOverlayBorders() && chunkPixels >= MIN_BORDER_CHUNK_PIXELS;
         int borderWidth = chunkPixels >= THICK_BORDER_CHUNK_PIXELS ? 2 : 1;
 
+        // Dashes are measured off the chunk rather than fixed, so a chunk carries the same three
+        // dashes a side at every zoom and the cost of the grid does not grow as the map is zoomed.
+        boolean grid = config.isNodeChunkGrid() && chunkPixels >= MIN_GRID_CHUNK_PIXELS;
+        int dash = Math.max(1, Math.round(chunkPixels / 6f));
+        int dashGap = Math.max(1, Math.round(chunkPixels / 5f));
+
         // The palette is copied once rather than locked per chunk, and each row is resolved into
         // plain arrays so the fill and border passes are array reads.
         Int2ObjectMap<NodeInfo> palette = cache.snapshotNodes();
@@ -128,8 +149,9 @@ public final class NodeOverlayRenderer {
                 fillRun(guiGraphics, colourOf(palette, runId, runProtected, alpha),
                     minChunkX + runFrom, minChunkX + width, top, bottom, originX, scale);
 
-                if (borders) {
-                    drawBorders(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale, borderWidth);
+                if (borders || grid) {
+                    drawEdges(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale,
+                        borders, borderWidth, grid, dash, dashGap);
                 }
             }
 
@@ -232,15 +254,22 @@ public final class NodeOverlayRenderer {
     }
 
     /**
-     * Draws the seams where a chunk's node differs from its west or north neighbour.
+     * Draws the west and north edge of each chunk in a row: a solid seam where the chunk's node
+     * differs from that neighbour, and otherwise the dashed grid that separates chunks of one node.
      *
-     * <p>Chunks owned by nobody take part rather than being skipped: the line between territory
-     * and open ground is exactly as much a border as the line between two nodes, and skipping the
-     * empty side is what used to leave the east and south edges of a node unoutlined.
+     * <p>Chunks owned by nobody take part in the seams rather than being skipped: the line between
+     * territory and open ground is exactly as much a border as the line between two nodes, and
+     * skipping the empty side is what used to leave the east and south edges of a node unoutlined.
+     * They take no part in the grid, which belongs to the fill and so stops where the fill does.
+     *
+     * <p>The two never stack on one edge, so a seam always stays the heavier line. With seams
+     * turned off the grid takes the node boundaries over as well, since there is nothing left to
+     * confuse them with.
      */
-    private static void drawBorders(GuiGraphics guiGraphics, long[] ids, long[] northIds,
-                                    int minChunkX, int width, int top, int bottom,
-                                    double originX, float scale, int borderWidth) {
+    private static void drawEdges(GuiGraphics guiGraphics, long[] ids, long[] northIds,
+                                  int minChunkX, int width, int top, int bottom,
+                                  double originX, float scale,
+                                  boolean seams, int borderWidth, boolean grid, int dash, int gap) {
         for (int i = 0; i < width; i++) {
             long id = ids[i];
             long west = i == 0 ? NO_ID : ids[i - 1];
@@ -250,12 +279,49 @@ public final class NodeOverlayRenderer {
             int right = screenX(minChunkX + i + 1, originX, scale);
 
             // Differing implies at least one side is a real node, so no extra check is needed.
-            if (id != west) {
+            if (seams && id != west) {
                 guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, BORDER_COLOUR);
+            } else if (grid && id != NO_ID) {
+                dashedVertical(guiGraphics, left, top, bottom, dash, gap);
             }
-            if (id != north) {
+
+            if (seams && id != north) {
                 guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), BORDER_COLOUR);
+            } else if (grid && id != NO_ID) {
+                dashedHorizontal(guiGraphics, left, right, top, dash, gap);
             }
+        }
+    }
+
+    /**
+     * Lays a dashed hairline down a chunk's west edge.
+     *
+     * <p>The pattern is centred on the edge rather than started at one end, so the dashes stop
+     * short of both corners and the grid does not close up into something that could pass for a
+     * solid outline around every chunk.
+     */
+    private static void dashedVertical(GuiGraphics guiGraphics, int x, int top, int bottom, int dash, int gap) {
+        int length = bottom - top;
+        int count = (length + gap) / (dash + gap);
+        if (count < 1) {
+            return;
+        }
+        int y = top + (length - (count * dash + (count - 1) * gap)) / 2;
+        for (int i = 0; i < count; i++, y += dash + gap) {
+            guiGraphics.fill(x, y, x + 1, y + dash, CHUNK_GRID_COLOUR);
+        }
+    }
+
+    /** As {@link #dashedVertical}, along a chunk's north edge. */
+    private static void dashedHorizontal(GuiGraphics guiGraphics, int left, int right, int y, int dash, int gap) {
+        int length = right - left;
+        int count = (length + gap) / (dash + gap);
+        if (count < 1) {
+            return;
+        }
+        int x = left + (length - (count * dash + (count - 1) * gap)) / 2;
+        for (int i = 0; i < count; i++, x += dash + gap) {
+            guiGraphics.fill(x, y, x + dash, y + 1, CHUNK_GRID_COLOUR);
         }
     }
 

@@ -58,6 +58,7 @@ public class CivMapConfig {
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private boolean nodeOverlayBorders;
+    private boolean nodeChunkGrid;
     private int nodeQuerySize;
 
     public CivMapConfig(File file, Properties properties) {
@@ -105,6 +106,7 @@ public class CivMapConfig {
         // existing config does not silently keep the old translucent value.
         this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
         this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
+        this.nodeChunkGrid = Boolean.parseBoolean(properties.getProperty("node_chunk_grid", "true"));
         // Clamped on read as well as on save, so a config written before the cap came down does
         // not leave the slider sitting outside its own range.
         this.nodeQuerySize = NodeProtocol.clampQuerySize(
@@ -154,6 +156,7 @@ public class CivMapConfig {
             properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
+            properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
             properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
@@ -496,6 +499,15 @@ public class CivMapConfig {
 
     public void setNodeOverlayBorders(boolean nodeOverlayBorders) {
         this.nodeOverlayBorders = nodeOverlayBorders;
+    }
+
+    /** Whether every chunk inside a node is outlined with a slim dashed grid. */
+    public boolean isNodeChunkGrid() {
+        return nodeChunkGrid;
+    }
+
+    public void setNodeChunkGrid(boolean nodeChunkGrid) {
+        this.nodeChunkGrid = nodeChunkGrid;
     }
 
     public int getNodeQuerySize() {

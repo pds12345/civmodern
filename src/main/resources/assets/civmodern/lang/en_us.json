@@ -68,6 +68,8 @@
     "civmodern.screen.nodes.query.tooltip": "Keep asking the server for node data. Turning this off freezes the overlay on what is already cached; it does not hide it. Use the button on the map to hide the layer.",
     "civmodern.screen.nodes.borders": "Node borders",
     "civmodern.screen.nodes.borders.tooltip": "Outline the seams between nodes, and between territory and open ground, when zoomed in",
+    "civmodern.screen.nodes.grid": "Chunk grid",
+    "civmodern.screen.nodes.grid.tooltip": "Dash a slim line around every chunk inside a node, so single chunks can be counted off without mistaking one for the edge of the node",
     "civmodern.screen.nodes.opacity": "Fill opacity: %s",
     "civmodern.screen.nodes.opacity.solid": "Solid",
     "civmodern.screen.nodes.window": "Query window: %s",

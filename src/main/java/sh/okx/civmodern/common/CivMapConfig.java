@@ -59,6 +59,7 @@ public class CivMapConfig {
     private float nodeOverlayOpacity;
     private boolean nodeOverlayBorders;
     private boolean nodeChunkGrid;
+    private boolean nodeShowUnclaimed;
     private int nodeQuerySize;
 
     public CivMapConfig(File file, Properties properties) {
@@ -107,6 +108,7 @@ public class CivMapConfig {
         this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
         this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
         this.nodeChunkGrid = Boolean.parseBoolean(properties.getProperty("node_chunk_grid", "true"));
+        this.nodeShowUnclaimed = Boolean.parseBoolean(properties.getProperty("node_show_unclaimed", "true"));
         // Clamped on read as well as on save, so a config written before the cap came down does
         // not leave the slider sitting outside its own range.
         this.nodeQuerySize = NodeProtocol.clampQuerySize(
@@ -157,6 +159,7 @@ public class CivMapConfig {
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
             properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
+            properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
             properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
@@ -508,6 +511,18 @@ public class CivMapConfig {
 
     public void setNodeChunkGrid(boolean nodeChunkGrid) {
         this.nodeChunkGrid = nodeChunkGrid;
+    }
+
+    /**
+     * Whether nodes nobody has claimed are drawn at all. Turning this off leaves them as bare map,
+     * so only territory somebody holds is painted; the data is still cached either way.
+     */
+    public boolean isNodeShowUnclaimed() {
+        return nodeShowUnclaimed;
+    }
+
+    public void setNodeShowUnclaimed(boolean nodeShowUnclaimed) {
+        this.nodeShowUnclaimed = nodeShowUnclaimed;
     }
 
     public int getNodeQuerySize() {

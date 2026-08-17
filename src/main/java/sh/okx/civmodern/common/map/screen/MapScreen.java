@@ -515,7 +515,7 @@ public class MapScreen extends Screen {
         // Set before the widgets render, so hovering a toolbar button still wins the tooltip slot.
         if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
             && !editWaypointModal.isVisible() && !positionContextMenu.isVisible()) {
-            List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, mouseBlockX >> 4, mouseBlockY >> 4);
+            List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, config, mouseBlockX >> 4, mouseBlockY >> 4);
             if (!lines.isEmpty()) {
                 guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
             }

@@ -18,6 +18,10 @@ import java.util.List;
  * has lapsed, friendly or not. Which node a chunk belongs to is carried by the border seams
  * rather than by its fill, and the node's controlling bastion is marked with a hollow square.
  *
+ * <p>Nodes nobody has claimed are greys off the same ramp, which keeps them plainly outside that
+ * hue-coded scheme while still telling one unclaimed node from the next. A player who does not
+ * want to see them at all can turn them off, and then those chunks are drawn as bare map.
+ *
  * <p>Inside a node the individual chunks are separated by a slim dashed grid, so a player can
  * count chunks off a bastion without mistaking one of those lines for the edge of the node.
  */
@@ -42,8 +46,24 @@ public final class NodeOverlayRenderer {
      * Unclaimed ground is neither friendly nor unfriendly and has nothing to protect, so it stays
      * neutral. Painting it red would confuse "nobody owns this" with "someone owns this and their
      * bastion has stopped reaching", which is the one thing red is meant to call out.
+     *
+     * <p>Greys rather than one grey, so a stretch of unclaimed land reads as the several nodes it
+     * actually is instead of one blob. The shade comes from the node's palette colour index, which
+     * the server assigns so that no two adjacent nodes share one — meaning neighbours always land
+     * on different rungs of this ramp, and a node keeps the same shade from one query to the next.
+     *
+     * <p>Six rungs, matching the colour count the server plans for, evenly spaced in brightness and
+     * holding the same cool tint throughout so none of them starts to read as a status colour. They
+     * are listed out of brightness order, so the low indices a small map mostly draws land at
+     * opposite ends of the ramp rather than side by side. The spacing is deliberately wide: with
+     * borders turned off, the change in shade is the only seam between two unclaimed nodes.
      */
-    private static final int COLOUR_UNCLAIMED = 0x6E7880;
+    private static final int[] COLOUR_UNCLAIMED = {
+        0x6B757C, 0x43494E, 0xA7B6C2, 0x7F8B94, 0x575F65, 0x93A0AB,
+    };
+
+    /** The shade for a node the server never assigned a colour index. Deliberately the mid grey. */
+    private static final int COLOUR_UNCLAIMED_DEFAULT = COLOUR_UNCLAIMED[0];
 
     /** The hollow square marking a node's controlling bastion chunk. */
     private static final int BASTION_MARKER_COLOUR = 0xFFFFFFFF;
@@ -127,6 +147,9 @@ public final class NodeOverlayRenderer {
             int bottom = screenY(chunkZ + 1, originZ, scale);
 
             readRow(cache, minChunkX, chunkZ, width, ids, protectedHere);
+            if (!config.isNodeShowUnclaimed()) {
+                dropUnclaimed(palette, ids, protectedHere, width);
+            }
 
             if (bottom > top) {
                 // Merge horizontal runs into one fill. Nodes are large contiguous blobs, so this
@@ -241,6 +264,38 @@ public final class NodeOverlayRenderer {
         }
     }
 
+    /**
+     * Rewrites unclaimed nodes out of a resolved row, leaving those chunks looking exactly like
+     * chunks that belong to no node at all.
+     *
+     * <p>Done to the row rather than in {@link #colourOf} so that the whole overlay agrees: the
+     * fill is skipped, the chunk grid stops where the fill stops, and the line where held
+     * territory meets unclaimed ground is drawn as the border of the claim, which is what a player
+     * hiding this layer is asking to see.
+     *
+     * <p>The palette is consulted once per run of equal ids, the same way the fill pass does it,
+     * so hiding costs a lookup per node in the row rather than one per chunk.
+     */
+    private static void dropUnclaimed(Int2ObjectMap<NodeInfo> palette, long[] ids,
+                                      boolean[] protectedHere, int width) {
+        long runId = NO_ID;
+        boolean hide = false;
+
+        for (int i = 0; i < width; i++) {
+            // Compares against the id as it was read: the write below only touches entries already
+            // passed, so a run is still detected off its original ids.
+            if (ids[i] != runId) {
+                runId = ids[i];
+                NodeInfo node = runId == NO_ID ? null : palette.get((int) runId);
+                hide = node != null && !node.claimed();
+            }
+            if (hide) {
+                ids[i] = NO_ID;
+                protectedHere[i] = false;
+            }
+        }
+    }
+
     private static void fillRun(GuiGraphics guiGraphics, int colour, int fromChunkX, int toChunkX,
                                 int top, int bottom, double originX, float scale) {
         if (colour == 0) {
@@ -340,7 +395,7 @@ public final class NodeOverlayRenderer {
 
         int rgb;
         if (!node.claimed()) {
-            rgb = COLOUR_UNCLAIMED;
+            rgb = unclaimedColour(node);
         } else if (!isProtected) {
             // Red regardless of whose node it is: a lapsed bastion is the same fact either way.
             rgb = COLOUR_UNPROTECTED;
@@ -349,6 +404,20 @@ public final class NodeOverlayRenderer {
         }
 
         return alpha | rgb;
+    }
+
+    /**
+     * @return the grey this unclaimed node is painted, from its palette colour index
+     */
+    private static int unclaimedColour(NodeInfo node) {
+        int index = node.colorIndex();
+        if (index < 0) {
+            return COLOUR_UNCLAIMED_DEFAULT;
+        }
+        // Wrapped rather than clamped: the server aims for a handful of colours but makes no
+        // promise about the count, and wrapping only ever costs two neighbours the same shade
+        // where clamping would flatten every index past the end into one.
+        return COLOUR_UNCLAIMED[index % COLOUR_UNCLAIMED.length];
     }
 
     private static int screenX(int chunkX, double originX, float scale) {
@@ -366,7 +435,7 @@ public final class NodeOverlayRenderer {
      *
      * <p>Only shows what the API served, which is only what a player can already see in game.
      */
-    public static List<Component> tooltip(NodeCache cache, int chunkX, int chunkZ) {
+    public static List<Component> tooltip(NodeCache cache, CivMapConfig config, int chunkX, int chunkZ) {
         List<Component> lines = new ArrayList<>();
 
         NodeRegion region = cache.getRegion(NodeCache.regionOf(chunkX, chunkZ));
@@ -381,6 +450,11 @@ public final class NodeOverlayRenderer {
 
         NodeInfo node = cache.getNode(region.nodeId(lx, lz));
         if (node == null) {
+            return lines;
+        }
+        if (!node.claimed() && !config.isNodeShowUnclaimed()) {
+            // Nothing is painted here, so naming a node under the cursor would be describing
+            // something the player cannot see.
             return lines;
         }
 

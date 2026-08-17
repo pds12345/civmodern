@@ -67,6 +67,14 @@ public class NodeConfigScreen extends AbstractConfigScreen {
             Tooltip.create(Component.translatable("civmodern.screen.nodes.grid.tooltip")),
             ToggleButton.DEFAULT_NARRATION));
 
+        // Hides only the unclaimed layer, so the map still queries and caches it: the toggle is a
+        // view of the same data, not a second freeze switch.
+        addRenderableWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+            Component.translatable("civmodern.screen.nodes.unclaimed"),
+            this.config::isNodeShowUnclaimed, this.config::setNodeShowUnclaimed,
+            Tooltip.create(Component.translatable("civmodern.screen.nodes.unclaimed.tooltip")),
+            ToggleButton.DEFAULT_NARRATION));
+
         offset += 24;
 
         addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0.1, 1.0, new DoubleValue() {

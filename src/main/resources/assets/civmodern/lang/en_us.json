@@ -70,6 +70,8 @@
     "civmodern.screen.nodes.borders.tooltip": "Outline the seams between nodes, and between territory and open ground, when zoomed in",
     "civmodern.screen.nodes.grid": "Chunk grid",
     "civmodern.screen.nodes.grid.tooltip": "Dash a slim line around every chunk inside a node, so single chunks can be counted off without mistaking one for the edge of the node",
+    "civmodern.screen.nodes.unclaimed": "Unclaimed nodes",
+    "civmodern.screen.nodes.unclaimed.tooltip": "Paint nodes nobody has claimed, in grey. Turning this off leaves them as bare map, so only territory somebody holds is coloured in.",
     "civmodern.screen.nodes.opacity": "Fill opacity: %s",
     "civmodern.screen.nodes.opacity.solid": "Solid",
     "civmodern.screen.nodes.window": "Query window: %s",

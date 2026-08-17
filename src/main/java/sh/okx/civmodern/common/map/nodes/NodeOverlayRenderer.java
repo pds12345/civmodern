@@ -90,8 +90,20 @@ public final class NodeOverlayRenderer {
      */
     private static final float SAMPLE_PIXELS = 1f;
 
-    /** Borders need a chunk big enough that a 1px line does not swallow the fill. */
-    private static final float MIN_BORDER_CHUNK_PIXELS = 4f;
+    /**
+     * Seams are drawn down to chunks this small — one zoom step past where a 1px line stops being
+     * a hairline on the chunk it edges.
+     *
+     * <p>At two pixels a seam takes half of the boundary chunk it is drawn on, so the fill there
+     * is no longer an honest picture of that one chunk. That is the deliberate trade: zoomed this
+     * far out the question being asked is where the territory ends, not which chunk is whose, and
+     * the shape of a claim is far easier to follow with its outline drawn thick than with the
+     * outline dropped. Only chunks on a boundary pay it; interior fill is untouched.
+     *
+     * <p>Still exact, for all that: two pixels a chunk is above the point where the fill starts
+     * sampling, so a seam is drawn between chunks that really do neighbour each other.
+     */
+    private static final float MIN_BORDER_CHUNK_PIXELS = 2f;
 
     /** Once chunks are this large a single pixel reads as a hairline, so thicken the seams. */
     private static final float THICK_BORDER_CHUNK_PIXELS = 16f;

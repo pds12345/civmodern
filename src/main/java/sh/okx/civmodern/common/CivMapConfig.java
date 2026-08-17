@@ -53,6 +53,10 @@ public class CivMapConfig {
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
     private int borderColour;
+    private boolean nodeOverlayEnabled;
+    private float nodeOverlayOpacity;
+    private boolean nodeOverlayBorders;
+    private int nodeQuerySize;
 
     public CivMapConfig(File file, Properties properties) {
         this.file = file;
@@ -93,6 +97,10 @@ public class CivMapConfig {
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
+        this.nodeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true"));
+        this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_overlay_opacity", "0.45"));
+        this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
+        this.nodeQuerySize = Integer.parseInt(properties.getProperty("node_query_size", "31"));
     }
 
     public void save() {
@@ -134,6 +142,10 @@ public class CivMapConfig {
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
+            properties.setProperty("node_overlay_enabled", Boolean.toString(nodeOverlayEnabled));
+            properties.setProperty("node_overlay_opacity", Float.toString(nodeOverlayOpacity));
+            properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
+            properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
                 properties.store(output, null);
@@ -438,5 +450,37 @@ public class CivMapConfig {
 
     public int getBorderColour() {
         return borderColour;
+    }
+
+    public boolean isNodeOverlayEnabled() {
+        return nodeOverlayEnabled;
+    }
+
+    public void setNodeOverlayEnabled(boolean nodeOverlayEnabled) {
+        this.nodeOverlayEnabled = nodeOverlayEnabled;
+    }
+
+    public float getNodeOverlayOpacity() {
+        return nodeOverlayOpacity;
+    }
+
+    public void setNodeOverlayOpacity(float nodeOverlayOpacity) {
+        this.nodeOverlayOpacity = nodeOverlayOpacity;
+    }
+
+    public boolean isNodeOverlayBorders() {
+        return nodeOverlayBorders;
+    }
+
+    public void setNodeOverlayBorders(boolean nodeOverlayBorders) {
+        this.nodeOverlayBorders = nodeOverlayBorders;
+    }
+
+    public int getNodeQuerySize() {
+        return nodeQuerySize;
+    }
+
+    public void setNodeQuerySize(int nodeQuerySize) {
+        this.nodeQuerySize = nodeQuerySize;
     }
 }

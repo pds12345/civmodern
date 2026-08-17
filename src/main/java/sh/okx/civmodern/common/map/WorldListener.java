@@ -25,6 +25,7 @@ import sh.okx.civmodern.common.events.WorldRenderLastEvent;
 import sh.okx.civmodern.common.map.converters.JourneymapConverter;
 import sh.okx.civmodern.common.map.converters.VoxelMapConverter;
 import sh.okx.civmodern.common.map.data.RegionRenderer;
+import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.screen.ImportAvailable;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -42,6 +43,7 @@ public class WorldListener {
     private final ColourProvider provider;
 
     private MapCache cache;
+    private NodeCache nodes;
     private MapFolder file;
     private Minimap minimap;
     private Waypoints waypoints;
@@ -165,6 +167,7 @@ public class WorldListener {
                         } finally {
                             Minecraft.getInstance().execute(() -> {
                                 this.cache = new MapCache(this.file);
+                                this.nodes = new NodeCache(this.file);
                                 this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.config, this.provider);
 
                                 for (ChunkPos chunk : this.loadedChunks) {
@@ -186,6 +189,7 @@ public class WorldListener {
         AbstractCivModernMod.LOGGER.info("No mods available for import, using existing map data");
         converter = null;
         this.cache = new MapCache(this.file);
+        this.nodes = new NodeCache(this.file);
         this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.config, this.provider);
     }
 
@@ -204,8 +208,13 @@ public class WorldListener {
             this.cache.save();
             this.cache.free();
         }
+        // Must flush before the MapFolder connection below is closed.
+        if (this.nodes != null) {
+            this.nodes.save();
+        }
         this.minimap = null;
         this.cache = null;
+        this.nodes = null;
         if (this.waypoints != null) {
             this.waypoints.save();
         }
@@ -225,6 +234,10 @@ public class WorldListener {
 
     public MapCache getCache() {
         return this.cache;
+    }
+
+    public NodeCache getNodes() {
+        return this.nodes;
     }
 
     @Subscribe

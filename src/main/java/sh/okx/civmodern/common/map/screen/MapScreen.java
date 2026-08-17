@@ -31,6 +31,9 @@ import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.map.MapCache;
 import sh.okx.civmodern.common.map.RegionAtlasTexture;
 import sh.okx.civmodern.common.map.RegionKey;
+import sh.okx.civmodern.common.map.nodes.NodeApiClient;
+import sh.okx.civmodern.common.map.nodes.NodeCache;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -60,6 +63,8 @@ public class MapScreen extends Screen {
     private final AbstractCivModernMod mod;
     private final KeyMapping key;
     private final MapCache mapCache;
+    private final NodeCache nodeCache;
+    private final NodeApiClient nodeApi;
     private final AutoNavigation navigation;
     private final Waypoints waypoints;
     private final PlayerWaypoints playerWaypoints;
@@ -69,6 +74,10 @@ public class MapScreen extends Screen {
     private NewWaypointModal newWaypointModal;
     private EditWaypointModal editWaypointModal;
     private ImageButton openWaypointButton;
+    private ImageButton toggleNodes;
+
+    /** Tracks the API state the node button's tooltip was built for, so it can follow along. */
+    private NodeApiClient.State nodeTooltipState;
 
     private PositionContextMenu positionContextMenu;
 
@@ -90,13 +99,15 @@ public class MapScreen extends Screen {
 
     private boolean changedConfig = false;
 
-    public MapScreen(AbstractCivModernMod mod, KeyMapping key, CivMapConfig config, MapCache mapCache, AutoNavigation navigation, Waypoints waypoints, PlayerWaypoints playerWaypoints) {
+    public MapScreen(AbstractCivModernMod mod, KeyMapping key, CivMapConfig config, MapCache mapCache, NodeCache nodeCache, NodeApiClient nodeApi, AutoNavigation navigation, Waypoints waypoints, PlayerWaypoints playerWaypoints) {
         super(Component.translatable("civmodern.screen.map.title"));
 
         this.mod = mod;
         this.key = key;
         this.config = config;
         this.mapCache = mapCache;
+        this.nodeCache = nodeCache;
+        this.nodeApi = nodeApi;
         this.waypoints = waypoints;
         this.playerWaypoints = playerWaypoints;
         Window window = Minecraft.getInstance().getWindow();
@@ -185,6 +196,38 @@ public class MapScreen extends Screen {
         });
         togglePlayers.setTooltip(Tooltip.create(Component.translatable("civmodern.map.players.tooltip")));
         addRenderableWidget(togglePlayers);
+
+        toggleNodes = new ImageButton(this.width - 78, 10, 20, 20, nodeOverlayImage(), imbg -> {
+            config.setNodeOverlayEnabled(!config.isNodeOverlayEnabled());
+            changedConfig = true;
+            imbg.setImage(nodeOverlayImage());
+            imbg.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+        });
+        toggleNodes.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+        addRenderableWidget(toggleNodes);
+    }
+
+    private Identifier nodeOverlayImage() {
+        return Identifier.fromNamespaceAndPath("civmodern",
+            config.isNodeOverlayEnabled() ? "gui/nodes.png" : "gui/nodesoff.png");
+    }
+
+    /** Explains why nothing is drawn when the server is not serving node data. */
+    private Component nodeOverlayTooltip() {
+        if (nodeApi == null || nodeApi.isAvailable()) {
+            return Component.translatable("civmodern.map.nodes.tooltip");
+        }
+        return Component.translatable("civmodern.map.nodes.tooltip")
+            .append(Component.literal("\n"))
+            .append(nodeApi.statusLine());
+    }
+
+    /**
+     * Whether there is territory to draw. A handshake that never completed disables the feature
+     * outright, so a server that does not serve node data draws nothing at all.
+     */
+    private boolean nodeOverlayActive() {
+        return config.isNodeOverlayEnabled() && nodeCache != null && nodeApi != null && nodeApi.isAvailable();
     }
 
     public void setNewWaypoint(Waypoint waypoint) {
@@ -225,6 +268,18 @@ public class MapScreen extends Screen {
         }
         guiGraphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(guiGraphics, 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), guiGraphics.pose(),
             ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
+
+        // The handshake can land or lapse while the map is open, so keep the button honest.
+        if (toggleNodes != null && nodeApi != null && nodeApi.getState() != nodeTooltipState) {
+            nodeTooltipState = nodeApi.getState();
+            toggleNodes.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+        }
+
+        // Node territory sits over the map tiles but under the waypoints and the chevron.
+        if (nodeOverlayActive()) {
+            NodeOverlayRenderer.render(guiGraphics, nodeCache, config, this.x, this.y,
+                window.getGuiScaledWidth(), window.getGuiScaledHeight(), scale);
+        }
 
         matrices.pushMatrix();
         matrices.translate(0, -1);
@@ -450,6 +505,15 @@ public class MapScreen extends Screen {
         guiGraphics.drawCenteredString(font, "(%d, %s, %d)".formatted(px, y == null ? "?" : Short.toString(y), pz), (int) (this.width / 2 / textScale), (int) ((this.height - 16) / textScale), -1);
 
         matrices.popMatrix();
+
+        // Set before the widgets render, so hovering a toolbar button still wins the tooltip slot.
+        if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible()) {
+            List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, mouseBlockX >> 4, mouseBlockY >> 4);
+            if (!lines.isEmpty()) {
+                guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
+            }
+        }
 
         for (Renderable renderable : ((ScreenAccessor) this).civmodern$getRenderables()) {
             renderable.render(guiGraphics, mouseX, mouseY, delta);

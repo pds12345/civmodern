@@ -8,6 +8,7 @@ import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStre
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.map.data.RegionLoader;
+import sh.okx.civmodern.common.map.nodes.NodeInfo;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -22,6 +23,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +58,12 @@ public class MapFolder {
                 statement.execute("CREATE TABLE IF NOT EXISTS blocks (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS biomes (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS regions (x INT NOT NULL, z INT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (x, z, type))");
+
+                // civnodes:v1 territory overlay. Scoped by the same folder as the block map, and
+                // additionally guarded by the API's own world name held in node_meta.
+                statement.execute("CREATE TABLE IF NOT EXISTS node_meta (key TEXT NOT NULL PRIMARY KEY, value TEXT)");
+                statement.execute("CREATE TABLE IF NOT EXISTS nodes (id INT NOT NULL PRIMARY KEY, flags INT NOT NULL, colour INT NOT NULL, name TEXT, group_name TEXT, bastion_x INT, bastion_z INT, has_bastion INT NOT NULL, updated INT NOT NULL)");
+                statement.execute("CREATE TABLE IF NOT EXISTS node_regions (x INT NOT NULL, z INT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (x, z))");
 
                 statement.execute("INSERT INTO meta VALUES (\"version\", " + VERSION + ") ON CONFLICT DO NOTHING");
 
@@ -338,6 +346,150 @@ public class MapFolder {
             return datas;
         } catch (SQLException | IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    // ------------------------------------------------------------ civnodes territory
+
+    /**
+     * The API world name the cached node data belongs to, or {@code null} if nothing is cached.
+     * Node ids are scoped to a world, so a mismatch means the cache must be dropped.
+     */
+    public String getNodeWorldName() {
+        synchronized (this.connection) {
+            try (PreparedStatement statement = this.connection.prepareStatement("SELECT value FROM node_meta WHERE key = 'world'")) {
+                ResultSet resultSet = statement.executeQuery();
+                return resultSet.next() ? resultSet.getString("value") : null;
+            } catch (SQLException e) {
+                AbstractCivModernMod.LOGGER.warn("Reading node world name", e);
+                return null;
+            }
+        }
+    }
+
+    public void setNodeWorldName(String worldName) {
+        synchronized (this.connection) {
+            try (PreparedStatement statement = this.connection.prepareStatement("INSERT INTO node_meta (key, value) VALUES ('world', ?) ON CONFLICT DO UPDATE SET value = excluded.value")) {
+                statement.setString(1, worldName);
+                statement.executeUpdate();
+            } catch (SQLException e) {
+                AbstractCivModernMod.LOGGER.warn("Writing node world name", e);
+            }
+        }
+    }
+
+    public void clearNodeData() {
+        synchronized (this.connection) {
+            try (Statement statement = this.connection.createStatement()) {
+                statement.execute("DELETE FROM nodes");
+                statement.execute("DELETE FROM node_regions");
+            } catch (SQLException e) {
+                AbstractCivModernMod.LOGGER.warn("Clearing node data", e);
+            }
+        }
+    }
+
+    public Int2ObjectMap<NodeInfo> loadNodes() {
+        synchronized (this.connection) {
+            Int2ObjectMap<NodeInfo> nodes = new Int2ObjectOpenHashMap<>();
+            try (Statement statement = this.connection.createStatement()) {
+                ResultSet resultSet = statement.executeQuery("SELECT id, flags, colour, name, group_name, bastion_x, bastion_z, has_bastion FROM nodes");
+                while (resultSet.next()) {
+                    int id = resultSet.getInt("id");
+                    nodes.put(id, new NodeInfo(
+                        id,
+                        resultSet.getInt("flags"),
+                        (byte) resultSet.getInt("colour"),
+                        resultSet.getString("name"),
+                        resultSet.getString("group_name"),
+                        resultSet.getInt("has_bastion") != 0,
+                        resultSet.getInt("bastion_x"),
+                        resultSet.getInt("bastion_z")
+                    ));
+                }
+            } catch (SQLException e) {
+                AbstractCivModernMod.LOGGER.warn("Loading nodes", e);
+            }
+            return nodes;
+        }
+    }
+
+    public void saveNodes(Collection<NodeInfo> nodes) {
+        if (nodes.isEmpty()) {
+            return;
+        }
+        synchronized (this.connection) {
+            try (PreparedStatement statement = this.connection.prepareStatement(
+                "INSERT INTO nodes (id, flags, colour, name, group_name, bastion_x, bastion_z, has_bastion, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    + "ON CONFLICT DO UPDATE SET flags = excluded.flags, colour = excluded.colour, name = excluded.name, "
+                    + "group_name = excluded.group_name, bastion_x = excluded.bastion_x, bastion_z = excluded.bastion_z, "
+                    + "has_bastion = excluded.has_bastion, updated = excluded.updated")) {
+                long now = System.currentTimeMillis();
+                for (NodeInfo node : nodes) {
+                    statement.setInt(1, node.nodeId());
+                    statement.setInt(2, node.flags());
+                    statement.setInt(3, node.colorIndex());
+                    statement.setString(4, node.name());
+                    statement.setString(5, node.groupName());
+                    statement.setInt(6, node.bastionChunkX());
+                    statement.setInt(7, node.bastionChunkZ());
+                    statement.setInt(8, node.bastionInWindow() ? 1 : 0);
+                    statement.setLong(9, now);
+                    statement.addBatch();
+                }
+                statement.executeBatch();
+            } catch (SQLException e) {
+                AbstractCivModernMod.LOGGER.warn("Saving nodes", e);
+            }
+        }
+    }
+
+    /**
+     * @return the decompressed node region blob, or {@code null} if nothing is stored there
+     */
+    public byte[] getNodeRegionData(RegionKey key) {
+        synchronized (this.connection) {
+            try (PreparedStatement statement = this.connection.prepareStatement("SELECT data FROM node_regions WHERE x = ? AND z = ?")) {
+                statement.setInt(1, key.x());
+                statement.setInt(2, key.z());
+
+                ResultSet resultSet = statement.executeQuery();
+                if (!resultSet.next()) {
+                    return null;
+                }
+
+                ByteArrayInputStream in = new ByteArrayInputStream(resultSet.getBytes("data"));
+                try (ZstdCompressorInputStream zstd = new ZstdCompressorInputStream(in, RecyclingBufferPool.INSTANCE)) {
+                    return zstd.readAllBytes();
+                }
+            } catch (SQLException | IOException e) {
+                AbstractCivModernMod.LOGGER.warn("Loading node region " + key, e);
+                return null;
+            }
+        }
+    }
+
+    public void saveNodeRegions(Map<RegionKey, byte[]> regions) {
+        if (regions.isEmpty()) {
+            return;
+        }
+        synchronized (this.connection) {
+            try (PreparedStatement statement = this.connection.prepareStatement("INSERT INTO node_regions (x, z, data) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET data = excluded.data")) {
+                for (Map.Entry<RegionKey, byte[]> entry : regions.entrySet()) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    try (ZstdCompressorOutputStream zstd = new ZstdCompressorOutputStream(out)) {
+                        zstd.write(entry.getValue());
+                    }
+
+                    statement.setInt(1, entry.getKey().x());
+                    statement.setInt(2, entry.getKey().z());
+                    statement.setBytes(3, out.toByteArray());
+                    statement.addBatch();
+                }
+                statement.executeBatch();
+            } catch (SQLException | IOException e) {
+                AbstractCivModernMod.LOGGER.warn("Saving node regions", e);
+            }
         }
     }
 

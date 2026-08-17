@@ -5,6 +5,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
+import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.gui.widget.TextRenderable;
@@ -82,6 +83,18 @@ public final class MainConfigScreen extends AbstractConfigScreen {
                 .builder(
                     Component.translatable("civmodern.screen.main.map"),
                     (button) -> this.minecraft.setScreen(new MapConfigScreen(this.colourProvider, this.config, this))
+                )
+                .pos(offsetX, offsetY)
+                .build()
+        );
+
+        offsetY += Button.DEFAULT_HEIGHT + 4;
+        addRenderableWidget(
+            Button
+                .builder(
+                    Component.translatable("civmodern.screen.main.nodes"),
+                    (button) -> this.minecraft.setScreen(
+                        new NodeConfigScreen(this.config, AbstractCivModernMod.getInstance().getNodeApi(), this))
                 )
                 .pos(offsetX, offsetY)
                 .build()

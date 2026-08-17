@@ -314,22 +314,13 @@ public class NodeApiClient {
             return;
         }
 
-        int size = clampSize(config.getNodeQuerySize());
+        int size = NodeProtocol.clampQuerySize(config.getNodeQuerySize(), maxSize);
         // The centre is advisory; the server answers from our real position and echoes the origin.
         if (send(NodeProtocol.encodeQuery(chunkX, chunkZ, size))) {
             lastQueryAt = now;
             lastQueryChunkX = chunkX;
             lastQueryChunkZ = chunkZ;
         }
-    }
-
-    /** Clamps to an odd value in {@code [3, maxSize]}; an even request rounds down. */
-    private int clampSize(int requested) {
-        int size = Math.min(requested, maxSize);
-        if ((size & 1) == 0) {
-            size--;
-        }
-        return Math.max(3, size);
     }
 
     private boolean send(byte[] frame) {

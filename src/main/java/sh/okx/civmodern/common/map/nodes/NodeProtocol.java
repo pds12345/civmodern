@@ -38,7 +38,38 @@ public final class NodeProtocol {
     /** The minor version we were built against. Never rejected by the server today. */
     public static final byte CLIENT_MINOR = 1;
 
+    /** The smallest window the server will serve. */
+    public static final int MIN_QUERY_SIZE = 3;
+
+    /**
+     * The largest window this client will ever ask for, independent of the larger ceiling a
+     * server may advertise in {@code S2C_HELLO}. Smaller windows mean smaller responses and
+     * less work per chunk crossing; the cache stitches successive windows together anyway.
+     */
+    public static final int MAX_QUERY_SIZE = 17;
+
     private NodeProtocol() {
+    }
+
+    /**
+     * Brings a requested window size into range: odd, at least {@link #MIN_QUERY_SIZE}, and no
+     * larger than either the server's advertised ceiling or {@link #MAX_QUERY_SIZE}. Rounding an
+     * even request <em>down</em> mirrors what the server does to it.
+     *
+     * @param serverMax the ceiling from {@code S2C_HELLO}, or {@link Integer#MAX_VALUE} when the
+     *                  server has not said
+     */
+    public static int clampQuerySize(int requested, int serverMax) {
+        int size = Math.min(Math.min(requested, serverMax), MAX_QUERY_SIZE);
+        if ((size & 1) == 0) {
+            size--;
+        }
+        return Math.max(MIN_QUERY_SIZE, size);
+    }
+
+    /** Range check with no server involved, for validating a configured value. */
+    public static int clampQuerySize(int requested) {
+        return clampQuerySize(requested, Integer.MAX_VALUE);
     }
 
     public enum ErrorReason {

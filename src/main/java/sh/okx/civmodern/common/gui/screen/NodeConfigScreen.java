@@ -13,6 +13,7 @@ import sh.okx.civmodern.common.gui.widget.DoubleOptionUpdateableSliderWidget;
 import sh.okx.civmodern.common.gui.widget.TextRenderable;
 import sh.okx.civmodern.common.gui.widget.ToggleButton;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
+import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 /**
  * Settings for the node territory overlay, plus the manual handshake for when the automatic one
@@ -77,7 +78,8 @@ public class NodeConfigScreen extends AbstractConfigScreen {
             }
         }));
 
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 3, 31, new DoubleValue() {
+        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20,
+            NodeProtocol.MIN_QUERY_SIZE, NodeProtocol.MAX_QUERY_SIZE, new DoubleValue() {
             @Override
             public double get() {
                 return config.getNodeQuerySize();
@@ -85,9 +87,8 @@ public class NodeConfigScreen extends AbstractConfigScreen {
 
             @Override
             public void set(double value) {
-                // The server clamps to an odd value anyway; matching it keeps the label honest.
-                int size = (int) value;
-                config.setNodeQuerySize((size & 1) == 0 ? size - 1 : size);
+                // The setter clamps to an odd value, matching what the server would do anyway.
+                config.setNodeQuerySize((int) value);
             }
 
             @Override

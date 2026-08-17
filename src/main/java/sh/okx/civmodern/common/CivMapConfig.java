@@ -7,6 +7,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
+import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 public class CivMapConfig {
     private static final Logger LOGGER = LogManager.getLogger(CivMapConfig.class);
@@ -104,7 +105,10 @@ public class CivMapConfig {
         // existing config does not silently keep the old translucent value.
         this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
         this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
-        this.nodeQuerySize = Integer.parseInt(properties.getProperty("node_query_size", "31"));
+        // Clamped on read as well as on save, so a config written before the cap came down does
+        // not leave the slider sitting outside its own range.
+        this.nodeQuerySize = NodeProtocol.clampQuerySize(
+            Integer.parseInt(properties.getProperty("node_query_size", Integer.toString(NodeProtocol.MAX_QUERY_SIZE))));
     }
 
     public void save() {
@@ -499,6 +503,6 @@ public class CivMapConfig {
     }
 
     public void setNodeQuerySize(int nodeQuerySize) {
-        this.nodeQuerySize = nodeQuerySize;
+        this.nodeQuerySize = NodeProtocol.clampQuerySize(nodeQuerySize);
     }
 }

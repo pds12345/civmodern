@@ -212,14 +212,20 @@ public class MapScreen extends Screen {
             config.isNodeOverlayEnabled() ? "gui/nodes.png" : "gui/nodesoff.png");
     }
 
-    /** Explains why nothing is drawn when the server is not serving node data. */
+    /**
+     * Explains that this button only hides the layer, and why nothing is drawn when the server is
+     * not serving node data.
+     */
     private Component nodeOverlayTooltip() {
-        if (nodeApi == null || nodeApi.isAvailable()) {
-            return Component.translatable("civmodern.map.nodes.tooltip");
+        MutableComponent tooltip = Component.translatable("civmodern.map.nodes.tooltip");
+        if (nodeApi != null && !nodeApi.isAvailable()) {
+            tooltip.append(Component.literal("\n")).append(nodeApi.statusLine());
+        } else if (!config.isNodeQueryEnabled()) {
+            // Otherwise a frozen overlay looks like a bug rather than a setting.
+            tooltip.append(Component.literal("\n"))
+                .append(Component.translatable("civmodern.map.nodes.tooltip.frozen"));
         }
-        return Component.translatable("civmodern.map.nodes.tooltip")
-            .append(Component.literal("\n"))
-            .append(nodeApi.statusLine());
+        return tooltip;
     }
 
     /**

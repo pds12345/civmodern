@@ -19,14 +19,33 @@ import java.util.List;
  */
 public final class NodeOverlayRenderer {
 
-    private static final int COLOUR_ACCESS = 0x3F8B5C;
-    private static final int COLOUR_NO_ACCESS = 0xA9791F;
-    private static final int COLOUR_BROKEN = 0xB04A34;
-    private static final int COLOUR_UNCLAIMED = 0x79838B;
-    private static final int BORDER_COLOUR = 0xFF14181B;
+    /** Always fully opaque, whatever the fill opacity: the seams are what define the territory. */
+    private static final int BORDER_COLOUR = 0xFF080B0E;
+
+    /**
+     * Consecutive palette indices are spread by the golden angle, so two nodes the server gave
+     * neighbouring indices land far apart on the colour wheel rather than looking alike.
+     */
+    private static final float HUE_STEP_DEGREES = 137.508f;
+
+    // Saturation and value per state. The hue always identifies the node; these say what it is.
+    // Brightness forms a deliberate ladder - access is brightest, then no-access and unclaimed at
+    // a similar level distinguished by how grey they are, then unprotected darkest of all.
+    private static final float ACCESS_S = 0.62f, ACCESS_V = 0.84f;
+    private static final float NO_ACCESS_S = 0.80f, NO_ACCESS_V = 0.52f;
+    private static final float UNCLAIMED_S = 0.15f, UNCLAIMED_V = 0.50f;
+
+    /** An unprotected chunk keeps its node's hue but drops to a dead, shadowed version of it. */
+    private static final float UNPROTECTED_S = 0.55f, UNPROTECTED_V = 0.32f;
 
     /** Below this many GUI pixels a chunk is not worth painting, and the map stays readable. */
     private static final float MIN_CHUNK_PIXELS = 1.5f;
+
+    /** Borders need a chunk big enough that a 1px line does not swallow the fill. */
+    private static final float MIN_BORDER_CHUNK_PIXELS = 4f;
+
+    /** Once chunks are this large a single pixel reads as a hairline, so thicken the seams. */
+    private static final float THICK_BORDER_CHUNK_PIXELS = 16f;
 
     /**
      * Stands in for "no node here" in the row arrays. Node ids are opaque ints, so the rows hold
@@ -57,12 +76,16 @@ public final class NodeOverlayRenderer {
             return;
         }
 
-        int minChunkX = Math.floorDiv((int) Math.floor(originX), 16);
-        int minChunkZ = Math.floorDiv((int) Math.floor(originZ), 16);
-        int maxChunkX = Math.floorDiv((int) Math.ceil(originX + screenWidth * scale), 16);
-        int maxChunkZ = Math.floorDiv((int) Math.ceil(originZ + screenHeight * scale), 16);
+        // Scanned one chunk beyond the viewport on every side. A seam is drawn on the west and
+        // north edge of whichever chunk differs from its neighbour, so without the extra ring the
+        // east and south edges of territory meeting open ground would never get a line at all.
+        int minChunkX = Math.floorDiv((int) Math.floor(originX), 16) - 1;
+        int minChunkZ = Math.floorDiv((int) Math.floor(originZ), 16) - 1;
+        int maxChunkX = Math.floorDiv((int) Math.ceil(originX + screenWidth * scale), 16) + 1;
+        int maxChunkZ = Math.floorDiv((int) Math.ceil(originZ + screenHeight * scale), 16) + 1;
 
-        boolean borders = config.isNodeOverlayBorders() && chunkPixels >= 4f;
+        boolean borders = config.isNodeOverlayBorders() && chunkPixels >= MIN_BORDER_CHUNK_PIXELS;
+        int borderWidth = chunkPixels >= THICK_BORDER_CHUNK_PIXELS ? 2 : 1;
 
         // The palette is copied once rather than locked per chunk, and each row is resolved into
         // plain arrays so the fill and border passes are array reads.
@@ -101,7 +124,7 @@ public final class NodeOverlayRenderer {
                     minChunkX + runFrom, minChunkX + width, top, bottom, originX, scale);
 
                 if (borders) {
-                    drawBorders(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale);
+                    drawBorders(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale, borderWidth);
                 }
             }
 
@@ -147,22 +170,30 @@ public final class NodeOverlayRenderer {
         }
     }
 
-    /** Draws the seams where a chunk's node differs from its west or north neighbour. */
+    /**
+     * Draws the seams where a chunk's node differs from its west or north neighbour.
+     *
+     * <p>Chunks owned by nobody take part rather than being skipped: the line between territory
+     * and open ground is exactly as much a border as the line between two nodes, and skipping the
+     * empty side is what used to leave the east and south edges of a node unoutlined.
+     */
     private static void drawBorders(GuiGraphics guiGraphics, long[] ids, long[] northIds,
-                                    int minChunkX, int width, int top, int bottom, double originX, float scale) {
+                                    int minChunkX, int width, int top, int bottom,
+                                    double originX, float scale, int borderWidth) {
         for (int i = 0; i < width; i++) {
             long id = ids[i];
-            if (id == NO_ID) {
-                continue;
-            }
+            long west = i == 0 ? NO_ID : ids[i - 1];
+            long north = northIds[i];
+
             int left = screenX(minChunkX + i, originX, scale);
             int right = screenX(minChunkX + i + 1, originX, scale);
 
-            if (i == 0 || ids[i - 1] != id) {
-                guiGraphics.fill(left, top, left + 1, bottom, BORDER_COLOUR);
+            // Differing implies at least one side is a real node, so no extra check is needed.
+            if (id != west) {
+                guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, BORDER_COLOUR);
             }
-            if (northIds[i] != id) {
-                guiGraphics.fill(left, top, right, top + 1, BORDER_COLOUR);
+            if (id != north) {
+                guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), BORDER_COLOUR);
             }
         }
     }
@@ -180,37 +211,66 @@ public final class NodeOverlayRenderer {
             return 0;
         }
 
-        int base;
+        float hue = hueFor(node);
+        float s;
+        float v;
         if (!node.claimed()) {
-            base = COLOUR_UNCLAIMED;
+            // Nearly grey, but keeping enough hue that two adjacent unclaimed nodes still differ.
+            s = UNCLAIMED_S;
+            v = UNCLAIMED_V;
         } else if (!isProtected) {
-            base = COLOUR_BROKEN;
+            s = UNPROTECTED_S;
+            v = UNPROTECTED_V;
+        } else if (node.hasAccess()) {
+            s = ACCESS_S;
+            v = ACCESS_V;
         } else {
-            base = node.hasAccess() ? COLOUR_ACCESS : COLOUR_NO_ACCESS;
+            s = NO_ACCESS_S;
+            v = NO_ACCESS_V;
         }
 
-        return alpha | shade(base, node.colorIndex());
+        return alpha | hsvToRgb(hue, s, v);
     }
 
     /**
-     * Nudges the brightness by the node's map palette index so that two adjacent nodes in the
-     * same state stay distinguishable. Adjacent nodes never share an index, and {@code -1}
-     * means the server never assigned one.
+     * The node's own hue. Prefers the server's map palette index, which is assigned at generation
+     * so that adjacent nodes never share one; falls back to scrambling the node id when the
+     * server left it unassigned, which at least keeps the colour stable for that node.
      */
-    private static int shade(int rgb, byte colorIndex) {
-        if (colorIndex < 0) {
-            return rgb;
+    private static float hueFor(NodeInfo node) {
+        int seed;
+        if (node.colorIndex() >= 0) {
+            seed = node.colorIndex();
+        } else {
+            seed = (node.nodeId() * 0x9E3779B1) >>> 24;
         }
-        // +/- ~12% across the palette, which separates neighbours without losing the state colour.
-        float factor = 0.88f + ((colorIndex & 0x07) / 7f) * 0.24f;
-        int r = clamp((int) (((rgb >> 16) & 0xFF) * factor));
-        int g = clamp((int) (((rgb >> 8) & 0xFF) * factor));
-        int b = clamp((int) ((rgb & 0xFF) * factor));
-        return (r << 16) | (g << 8) | b;
+        return (seed * HUE_STEP_DEGREES) % 360f;
     }
 
-    private static int clamp(int channel) {
-        return Math.min(255, Math.max(0, channel));
+    /** Hand-rolled rather than via java.awt.Color, which Minecraft avoids loading on clients. */
+    private static int hsvToRgb(float h, float s, float v) {
+        h = ((h % 360f) + 360f) % 360f;
+        float c = v * s;
+        float x = c * (1f - Math.abs(((h / 60f) % 2f) - 1f));
+        float m = v - c;
+
+        float r;
+        float g;
+        float b;
+        switch ((int) (h / 60f) % 6) {
+            case 0 -> { r = c; g = x; b = 0; }
+            case 1 -> { r = x; g = c; b = 0; }
+            case 2 -> { r = 0; g = c; b = x; }
+            case 3 -> { r = 0; g = x; b = c; }
+            case 4 -> { r = x; g = 0; b = c; }
+            default -> { r = c; g = 0; b = x; }
+        }
+
+        return (channel(r + m) << 16) | (channel(g + m) << 8) | channel(b + m);
+    }
+
+    private static int channel(float value) {
+        return Math.min(255, Math.max(0, Math.round(value * 255f)));
     }
 
     private static int screenX(int chunkX, double originX, float scale) {

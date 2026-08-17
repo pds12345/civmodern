@@ -54,6 +54,7 @@ public class CivMapConfig {
     private boolean showMinimapCoords;
     private int borderColour;
     private boolean nodeOverlayEnabled;
+    private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private boolean nodeOverlayBorders;
     private int nodeQuerySize;
@@ -98,7 +99,10 @@ public class CivMapConfig {
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         this.nodeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true"));
-        this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_overlay_opacity", "0.45"));
+        this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
+        // Renamed from node_overlay_opacity when the overlay became solid by default, so an
+        // existing config does not silently keep the old translucent value.
+        this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
         this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
         this.nodeQuerySize = Integer.parseInt(properties.getProperty("node_query_size", "31"));
     }
@@ -143,7 +147,8 @@ public class CivMapConfig {
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_enabled", Boolean.toString(nodeOverlayEnabled));
-            properties.setProperty("node_overlay_opacity", Float.toString(nodeOverlayOpacity));
+            properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
+            properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
             properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
 
@@ -452,12 +457,25 @@ public class CivMapConfig {
         return borderColour;
     }
 
+    /** Whether the overlay is drawn on the map. Independent of whether the server is queried. */
     public boolean isNodeOverlayEnabled() {
         return nodeOverlayEnabled;
     }
 
     public void setNodeOverlayEnabled(boolean nodeOverlayEnabled) {
         this.nodeOverlayEnabled = nodeOverlayEnabled;
+    }
+
+    /**
+     * Whether to keep asking the server for node data. Turning this off freezes the overlay on
+     * what is already cached rather than hiding it.
+     */
+    public boolean isNodeQueryEnabled() {
+        return nodeQueryEnabled;
+    }
+
+    public void setNodeQueryEnabled(boolean nodeQueryEnabled) {
+        this.nodeQueryEnabled = nodeQueryEnabled;
     }
 
     public float getNodeOverlayOpacity() {

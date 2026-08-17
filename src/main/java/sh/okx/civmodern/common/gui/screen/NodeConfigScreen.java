@@ -41,10 +41,12 @@ public class NodeConfigScreen extends AbstractConfigScreen {
         int centre = left + 80;
         int offset = getBodyY();
 
+        // Deliberately not a display toggle: that one lives on the map itself. This only decides
+        // whether the mod keeps asking the server for data.
         addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
-            Component.translatable("civmodern.screen.nodes.overlay"),
-            this.config::isNodeOverlayEnabled, this.config::setNodeOverlayEnabled,
-            Tooltip.create(Component.translatable("civmodern.screen.nodes.overlay.tooltip")),
+            Component.translatable("civmodern.screen.nodes.query"),
+            this.config::isNodeQueryEnabled, this.config::setNodeQueryEnabled,
+            Tooltip.create(Component.translatable("civmodern.screen.nodes.query.tooltip")),
             ToggleButton.DEFAULT_NARRATION));
 
         addRenderableWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
@@ -68,7 +70,10 @@ public class NodeConfigScreen extends AbstractConfigScreen {
 
             @Override
             public Component getText(double value) {
-                return Component.translatable("civmodern.screen.nodes.opacity", Math.round(value * 100) + "%");
+                Component label = value >= 0.999
+                    ? Component.translatable("civmodern.screen.nodes.opacity.solid")
+                    : Component.literal(Math.round(value * 100) + "%");
+                return Component.translatable("civmodern.screen.nodes.opacity", label);
             }
         }));
 

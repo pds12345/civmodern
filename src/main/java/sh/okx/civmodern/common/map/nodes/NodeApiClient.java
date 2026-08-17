@@ -289,8 +289,10 @@ public class NodeApiClient {
     }
 
     private void maybeQuery(long now) {
-        // The toggle being off means we stop asking the server anything at all.
-        if (state != State.READY || !worldHasNodes || !config.isNodeOverlayEnabled()) {
+        // Gated on the query setting alone, not on whether the map is drawing the overlay: hiding
+        // the layer should not stop the cache filling in, and freezing the cache should not hide
+        // what has already been collected.
+        if (state != State.READY || !worldHasNodes || !config.isNodeQueryEnabled()) {
             return;
         }
 

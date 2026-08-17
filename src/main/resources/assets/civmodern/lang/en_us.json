@@ -89,6 +89,7 @@
     "civmodern.nodes.tooltip.noaccess": "No access",
     "civmodern.nodes.tooltip.protected": "Protected",
     "civmodern.nodes.tooltip.unprotected": "Not protected",
+    "civmodern.nodes.tooltip.controller": "Node controller",
     "civmodern.nodes.tooltip.bastion": "Bastion at %s, %s (%s chunks)",
     "civmodern.nodes.tooltip.age": "Updated %s ago",
     "civmodern.nodes.dump.none": "No node region received yet",

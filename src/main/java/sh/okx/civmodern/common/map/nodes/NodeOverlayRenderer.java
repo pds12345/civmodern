@@ -13,30 +13,32 @@ import java.util.List;
 /**
  * Draws node territory over the map and builds the hover text for a chunk.
  *
- * <p>The colours mirror what the in-game sidebar already shows, so the overlay reads the same
- * way {@code /nodemap} does: green where you have access, gold where you do not, red-brown
- * where a claimed node's bastion no longer reaches, and grey for unclaimed ground.
+ * <p>Colour says one thing only, so it can be read without a legend: green where a protected
+ * chunk is yours, yellow where a protected chunk is somebody else's, and red wherever protection
+ * has lapsed, friendly or not. Which node a chunk belongs to is carried by the border seams
+ * rather than by its fill, and the node's controlling bastion is marked with a hollow square.
  */
 public final class NodeOverlayRenderer {
 
     /** Always fully opaque, whatever the fill opacity: the seams are what define the territory. */
     private static final int BORDER_COLOUR = 0xFF080B0E;
 
+    // Status colours. Deliberately fixed rather than varied per node: the fill answers "can I
+    // build here", and the seams answer "whose is it".
+    private static final int COLOUR_FRIENDLY = 0x33A457;
+    private static final int COLOUR_UNFRIENDLY = 0xD8C230;
+    private static final int COLOUR_UNPROTECTED = 0xC63A2C;
+
     /**
-     * Consecutive palette indices are spread by the golden angle, so two nodes the server gave
-     * neighbouring indices land far apart on the colour wheel rather than looking alike.
+     * Unclaimed ground is neither friendly nor unfriendly and has nothing to protect, so it stays
+     * neutral. Painting it red would confuse "nobody owns this" with "someone owns this and their
+     * bastion has stopped reaching", which is the one thing red is meant to call out.
      */
-    private static final float HUE_STEP_DEGREES = 137.508f;
+    private static final int COLOUR_UNCLAIMED = 0x6E7880;
 
-    // Saturation and value per state. The hue always identifies the node; these say what it is.
-    // Brightness forms a deliberate ladder - access is brightest, then no-access and unclaimed at
-    // a similar level distinguished by how grey they are, then unprotected darkest of all.
-    private static final float ACCESS_S = 0.62f, ACCESS_V = 0.84f;
-    private static final float NO_ACCESS_S = 0.80f, NO_ACCESS_V = 0.52f;
-    private static final float UNCLAIMED_S = 0.15f, UNCLAIMED_V = 0.50f;
-
-    /** An unprotected chunk keeps its node's hue but drops to a dead, shadowed version of it. */
-    private static final float UNPROTECTED_S = 0.55f, UNPROTECTED_V = 0.32f;
+    /** The hollow square marking a node's controlling bastion chunk. */
+    private static final int BASTION_MARKER_COLOUR = 0xFFFFFFFF;
+    private static final int BASTION_MARKER_SHADOW = 0xFF101418;
 
     /** Below this many GUI pixels a chunk is not worth painting, and the map stays readable. */
     private static final float MIN_CHUNK_PIXELS = 1.5f;
@@ -46,6 +48,9 @@ public final class NodeOverlayRenderer {
 
     /** Once chunks are this large a single pixel reads as a hairline, so thicken the seams. */
     private static final float THICK_BORDER_CHUNK_PIXELS = 16f;
+
+    /** Under this the hollow square would collapse into a dot, so it is not drawn. */
+    private static final float MIN_BASTION_CHUNK_PIXELS = 6f;
 
     /**
      * Stands in for "no node here" in the row arrays. Node ids are opaque ints, so the rows hold
@@ -130,6 +135,62 @@ public final class NodeOverlayRenderer {
 
             System.arraycopy(ids, 0, northIds, 0, width);
         }
+
+        if (chunkPixels >= MIN_BASTION_CHUNK_PIXELS) {
+            drawBastions(guiGraphics, palette, minChunkX, maxChunkX, minChunkZ, maxChunkZ,
+                originX, originZ, scale, chunkPixels);
+        }
+    }
+
+    /**
+     * Outlines each node's controlling bastion chunk with a hollow square.
+     *
+     * <p>Driven off the palette rather than the chunk grid: a window touches tens of nodes but
+     * hundreds of thousands of chunks, and a node carries its bastion position directly. The
+     * position sticks around in the cache once seen, so the marker keeps showing even after the
+     * bastion falls outside the queried window.
+     */
+    private static void drawBastions(GuiGraphics guiGraphics, Int2ObjectMap<NodeInfo> palette,
+                                     int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ,
+                                     double originX, double originZ, float scale, float chunkPixels) {
+        // Thick enough to read against the fill, but never more than a quarter of the chunk.
+        int thickness = Math.max(1, Math.min(Math.round(chunkPixels / 10f), Math.round(chunkPixels / 4f)));
+        int inset = Math.max(1, Math.round(chunkPixels * 0.18f));
+
+        for (NodeInfo node : palette.values()) {
+            if (!node.bastionInWindow()) {
+                continue;
+            }
+            int chunkX = node.bastionChunkX();
+            int chunkZ = node.bastionChunkZ();
+            if (chunkX < minChunkX || chunkX > maxChunkX || chunkZ < minChunkZ || chunkZ > maxChunkZ) {
+                continue;
+            }
+
+            int left = screenX(chunkX, originX, scale) + inset;
+            int right = screenX(chunkX + 1, originX, scale) - inset;
+            int top = screenY(chunkZ, originZ, scale) + inset;
+            int bottom = screenY(chunkZ + 1, originZ, scale) - inset;
+            if (right - left < 3 || bottom - top < 3) {
+                continue;
+            }
+
+            // A dark square one pixel out, so the white stays legible on every fill colour.
+            hollowSquare(guiGraphics, left - 1, top - 1, right + 1, bottom + 1, thickness, BASTION_MARKER_SHADOW);
+            hollowSquare(guiGraphics, left, top, right, bottom, thickness, BASTION_MARKER_COLOUR);
+        }
+    }
+
+    private static void hollowSquare(GuiGraphics guiGraphics, int left, int top, int right, int bottom,
+                                     int thickness, int colour) {
+        int t = Math.min(thickness, Math.min(right - left, bottom - top) / 2);
+        if (t < 1) {
+            return;
+        }
+        guiGraphics.fill(left, top, right, top + t, colour);
+        guiGraphics.fill(left, bottom - t, right, bottom, colour);
+        guiGraphics.fill(left, top + t, left + t, bottom - t, colour);
+        guiGraphics.fill(right - t, top + t, right, bottom - t, colour);
     }
 
     /** Resolves one chunk row, looking the region up only when crossing a region boundary. */
@@ -211,66 +272,17 @@ public final class NodeOverlayRenderer {
             return 0;
         }
 
-        float hue = hueFor(node);
-        float s;
-        float v;
+        int rgb;
         if (!node.claimed()) {
-            // Nearly grey, but keeping enough hue that two adjacent unclaimed nodes still differ.
-            s = UNCLAIMED_S;
-            v = UNCLAIMED_V;
+            rgb = COLOUR_UNCLAIMED;
         } else if (!isProtected) {
-            s = UNPROTECTED_S;
-            v = UNPROTECTED_V;
-        } else if (node.hasAccess()) {
-            s = ACCESS_S;
-            v = ACCESS_V;
+            // Red regardless of whose node it is: a lapsed bastion is the same fact either way.
+            rgb = COLOUR_UNPROTECTED;
         } else {
-            s = NO_ACCESS_S;
-            v = NO_ACCESS_V;
+            rgb = node.hasAccess() ? COLOUR_FRIENDLY : COLOUR_UNFRIENDLY;
         }
 
-        return alpha | hsvToRgb(hue, s, v);
-    }
-
-    /**
-     * The node's own hue. Prefers the server's map palette index, which is assigned at generation
-     * so that adjacent nodes never share one; falls back to scrambling the node id when the
-     * server left it unassigned, which at least keeps the colour stable for that node.
-     */
-    private static float hueFor(NodeInfo node) {
-        int seed;
-        if (node.colorIndex() >= 0) {
-            seed = node.colorIndex();
-        } else {
-            seed = (node.nodeId() * 0x9E3779B1) >>> 24;
-        }
-        return (seed * HUE_STEP_DEGREES) % 360f;
-    }
-
-    /** Hand-rolled rather than via java.awt.Color, which Minecraft avoids loading on clients. */
-    private static int hsvToRgb(float h, float s, float v) {
-        h = ((h % 360f) + 360f) % 360f;
-        float c = v * s;
-        float x = c * (1f - Math.abs(((h / 60f) % 2f) - 1f));
-        float m = v - c;
-
-        float r;
-        float g;
-        float b;
-        switch ((int) (h / 60f) % 6) {
-            case 0 -> { r = c; g = x; b = 0; }
-            case 1 -> { r = x; g = c; b = 0; }
-            case 2 -> { r = 0; g = c; b = x; }
-            case 3 -> { r = 0; g = x; b = c; }
-            case 4 -> { r = x; g = 0; b = c; }
-            default -> { r = c; g = 0; b = x; }
-        }
-
-        return (channel(r + m) << 16) | (channel(g + m) << 8) | channel(b + m);
-    }
-
-    private static int channel(float value) {
-        return Math.min(255, Math.max(0, Math.round(value * 255f)));
+        return alpha | rgb;
     }
 
     private static int screenX(int chunkX, double originX, float scale) {
@@ -328,6 +340,11 @@ public final class NodeOverlayRenderer {
                 : Component.translatable("civmodern.nodes.tooltip.unprotected").withStyle(ChatFormatting.RED));
 
             if (node.bastionInWindow()) {
+                if (node.bastionChunkX() == chunkX && node.bastionChunkZ() == chunkZ) {
+                    // The chunk under the hollow square.
+                    lines.add(Component.translatable("civmodern.nodes.tooltip.controller")
+                        .withStyle(ChatFormatting.WHITE));
+                }
                 int distance = Math.abs(node.bastionChunkX() - chunkX) + Math.abs(node.bastionChunkZ() - chunkZ);
                 lines.add(Component.translatable("civmodern.nodes.tooltip.bastion",
                     node.bastionChunkX() * 16 + 8, node.bastionChunkZ() * 16 + 8, distance)

@@ -69,8 +69,26 @@ public final class NodeOverlayRenderer {
     private static final int BASTION_MARKER_COLOUR = 0xFFFFFFFF;
     private static final int BASTION_MARKER_SHADOW = 0xFF101418;
 
-    /** Below this many GUI pixels a chunk is not worth painting, and the map stays readable. */
-    private static final float MIN_CHUNK_PIXELS = 1.5f;
+    /**
+     * A floor on how small a chunk can get before the overlay gives up, well below anything the
+     * map's own zoom range reaches: in practice territory stays drawn all the way out.
+     *
+     * <p>It is here to bound {@link #samplingStep} rather than to hide the layer — a chunk this
+     * small is a sample every 256 blocks, and past that the arithmetic is more interesting than
+     * the picture.
+     */
+    private static final float MIN_CHUNK_PIXELS = 1f / 16f;
+
+    /**
+     * Zoomed out far enough that chunks fall below a pixel, the overlay reads one chunk per this
+     * many pixels and paints its colour across the whole sample rather than walking every chunk.
+     *
+     * <p>One keeps the picture at the full resolution the screen can show. It also fixes the cost:
+     * a frame does work proportional to the pixels on screen instead of to the chunks behind them,
+     * which at full zoom-out is millions of chunks and would be what stopped the layer being drawn
+     * there at all.
+     */
+    private static final float SAMPLE_PIXELS = 1f;
 
     /** Borders need a chunk big enough that a 1px line does not swallow the fill. */
     private static final float MIN_BORDER_CHUNK_PIXELS = 4f;
@@ -124,6 +142,13 @@ public final class NodeOverlayRenderer {
         int maxChunkX = Math.floorDiv((int) Math.ceil(originX + screenWidth * scale), 16) + 1;
         int maxChunkZ = Math.floorDiv((int) Math.ceil(originZ + screenHeight * scale), 16) + 1;
 
+        // Snapped to a multiple of the step, in world coordinates rather than screen ones, so
+        // panning slides the picture instead of moving which chunks get sampled. Sampled off the
+        // viewport edge the lattice would shift with every drag and the territory would crawl.
+        int step = samplingStep(chunkPixels);
+        minChunkX = Math.floorDiv(minChunkX, step) * step;
+        minChunkZ = Math.floorDiv(minChunkZ, step) * step;
+
         boolean borders = config.isNodeOverlayBorders() && chunkPixels >= MIN_BORDER_CHUNK_PIXELS;
         int borderWidth = chunkPixels >= THICK_BORDER_CHUNK_PIXELS ? 2 : 1;
 
@@ -136,17 +161,19 @@ public final class NodeOverlayRenderer {
         // The palette is copied once rather than locked per chunk, and each row is resolved into
         // plain arrays so the fill and border passes are array reads.
         Int2ObjectMap<NodeInfo> palette = cache.snapshotNodes();
-        int width = maxChunkX - minChunkX + 1;
+        // Samples, not chunks: one entry per step chunks, and the last one covers whatever is left
+        // over past maxChunkX so the east edge of the screen is never short of a column.
+        int width = (maxChunkX - minChunkX) / step + 1;
         long[] ids = new long[width];
         boolean[] protectedHere = new boolean[width];
         long[] northIds = new long[width];
         Arrays.fill(northIds, NO_ID);
 
-        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ += step) {
             int top = screenY(chunkZ, originZ, scale);
-            int bottom = screenY(chunkZ + 1, originZ, scale);
+            int bottom = screenY(chunkZ + step, originZ, scale);
 
-            readRow(cache, minChunkX, chunkZ, width, ids, protectedHere);
+            readRow(cache, minChunkX, chunkZ, width, step, ids, protectedHere);
             if (!config.isNodeShowUnclaimed()) {
                 dropUnclaimed(palette, ids, protectedHere, width);
             }
@@ -163,15 +190,17 @@ public final class NodeOverlayRenderer {
                 for (int i = 1; i < width; i++) {
                     if (ids[i] != runId || protectedHere[i] != runProtected) {
                         fillRun(guiGraphics, colourOf(palette, runId, runProtected, alpha),
-                            minChunkX + runFrom, minChunkX + i, top, bottom, originX, scale);
+                            minChunkX + runFrom * step, minChunkX + i * step, top, bottom, originX, scale);
                         runId = ids[i];
                         runProtected = protectedHere[i];
                         runFrom = i;
                     }
                 }
                 fillRun(guiGraphics, colourOf(palette, runId, runProtected, alpha),
-                    minChunkX + runFrom, minChunkX + width, top, bottom, originX, scale);
+                    minChunkX + runFrom * step, minChunkX + width * step, top, bottom, originX, scale);
 
+                // Both need chunks several pixels across, which is far inside the zoom range where
+                // the step is 1, so these still walk real neighbouring chunks.
                 if (borders || grid) {
                     drawEdges(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale,
                         borders, borderWidth, grid, dash, dashGap);
@@ -238,15 +267,32 @@ public final class NodeOverlayRenderer {
         guiGraphics.fill(right - t, top + t, right, bottom - t, colour);
     }
 
-    /** Resolves one chunk row, looking the region up only when crossing a region boundary. */
-    private static void readRow(NodeCache cache, int minChunkX, int chunkZ, int width,
+    /**
+     * How many chunks one sample stands for: 1 wherever a chunk is at least a pixel across, and
+     * otherwise enough chunks to make a sample {@link #SAMPLE_PIXELS} wide.
+     */
+    private static int samplingStep(float chunkPixels) {
+        if (chunkPixels >= SAMPLE_PIXELS) {
+            return 1;
+        }
+        return Math.max(1, (int) Math.ceil(SAMPLE_PIXELS / chunkPixels));
+    }
+
+    /**
+     * Resolves one row of samples, looking the region up only when crossing a region boundary.
+     *
+     * <p>With a step above 1 the chunk read stands in for the whole sample. That is the trade the
+     * zoom asks for: below a pixel per chunk the screen cannot show every chunk anyway, and a node
+     * has to be smaller than the sample before it can slip between two of them.
+     */
+    private static void readRow(NodeCache cache, int minChunkX, int chunkZ, int width, int step,
                                 long[] ids, boolean[] protectedHere) {
         int lz = chunkZ & (NodeRegion.CHUNKS - 1);
         NodeRegion region = null;
         int regionX = Integer.MIN_VALUE;
 
         for (int i = 0; i < width; i++) {
-            int chunkX = minChunkX + i;
+            int chunkX = minChunkX + i * step;
             int thisRegionX = chunkX >> NodeRegion.SHIFT;
             if (thisRegionX != regionX) {
                 regionX = thisRegionX;

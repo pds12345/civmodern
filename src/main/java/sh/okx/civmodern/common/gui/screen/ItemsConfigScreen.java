@@ -122,18 +122,6 @@ final class ItemsConfigScreen extends AbstractConfigScreen {
             Tooltip.create(Component.translatable("civmodern.screen.items.crates.tooltip")),
             ToggleButton.DEFAULT_NARRATION
         ));
-        offsetY += Button.DEFAULT_HEIGHT + 4;
-
-        addRenderableWidget(new ToggleButton(
-            this.centreX - (Button.DEFAULT_WIDTH / 2),
-            offsetY,
-            ToggleButton.DEFAULT_BUTTON_WIDTH,
-            Component.translatable("civmodern.screen.items.repair"),
-            this.config::isShowRepairCost,
-            this.config::setShowRepairCost,
-            Tooltip.create(Component.translatable("civmodern.screen.items.repair.tooltip")),
-            ToggleButton.DEFAULT_NARRATION
-        ));
 
         addRenderableWidget(
             Button

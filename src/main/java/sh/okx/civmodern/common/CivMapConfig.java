@@ -7,6 +7,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
+import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 public class CivMapConfig {
     private static final Logger LOGGER = LogManager.getLogger(CivMapConfig.class);
@@ -53,6 +54,13 @@ public class CivMapConfig {
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
     private int borderColour;
+    private boolean nodeOverlayEnabled;
+    private boolean nodeQueryEnabled;
+    private float nodeOverlayOpacity;
+    private boolean nodeOverlayBorders;
+    private boolean nodeChunkGrid;
+    private boolean nodeShowUnclaimed;
+    private int nodeQuerySize;
 
     public CivMapConfig(File file, Properties properties) {
         this.file = file;
@@ -93,6 +101,18 @@ public class CivMapConfig {
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
+        this.nodeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true"));
+        this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
+        // Renamed from node_overlay_opacity when the overlay became solid by default, so an
+        // existing config does not silently keep the old translucent value.
+        this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
+        this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
+        this.nodeChunkGrid = Boolean.parseBoolean(properties.getProperty("node_chunk_grid", "true"));
+        this.nodeShowUnclaimed = Boolean.parseBoolean(properties.getProperty("node_show_unclaimed", "true"));
+        // Clamped on read as well as on save, so a config written before the cap came down does
+        // not leave the slider sitting outside its own range.
+        this.nodeQuerySize = NodeProtocol.clampQuerySize(
+            Integer.parseInt(properties.getProperty("node_query_size", Integer.toString(NodeProtocol.MAX_QUERY_SIZE))));
     }
 
     public void save() {
@@ -134,6 +154,13 @@ public class CivMapConfig {
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
+            properties.setProperty("node_overlay_enabled", Boolean.toString(nodeOverlayEnabled));
+            properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
+            properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
+            properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
+            properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
+            properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
+            properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
                 properties.store(output, null);
@@ -438,5 +465,71 @@ public class CivMapConfig {
 
     public int getBorderColour() {
         return borderColour;
+    }
+
+    /** Whether the overlay is drawn on the map. Independent of whether the server is queried. */
+    public boolean isNodeOverlayEnabled() {
+        return nodeOverlayEnabled;
+    }
+
+    public void setNodeOverlayEnabled(boolean nodeOverlayEnabled) {
+        this.nodeOverlayEnabled = nodeOverlayEnabled;
+    }
+
+    /**
+     * Whether to keep asking the server for node data. Turning this off freezes the overlay on
+     * what is already cached rather than hiding it.
+     */
+    public boolean isNodeQueryEnabled() {
+        return nodeQueryEnabled;
+    }
+
+    public void setNodeQueryEnabled(boolean nodeQueryEnabled) {
+        this.nodeQueryEnabled = nodeQueryEnabled;
+    }
+
+    public float getNodeOverlayOpacity() {
+        return nodeOverlayOpacity;
+    }
+
+    public void setNodeOverlayOpacity(float nodeOverlayOpacity) {
+        this.nodeOverlayOpacity = nodeOverlayOpacity;
+    }
+
+    public boolean isNodeOverlayBorders() {
+        return nodeOverlayBorders;
+    }
+
+    public void setNodeOverlayBorders(boolean nodeOverlayBorders) {
+        this.nodeOverlayBorders = nodeOverlayBorders;
+    }
+
+    /** Whether every chunk inside a node is outlined with a slim dashed grid. */
+    public boolean isNodeChunkGrid() {
+        return nodeChunkGrid;
+    }
+
+    public void setNodeChunkGrid(boolean nodeChunkGrid) {
+        this.nodeChunkGrid = nodeChunkGrid;
+    }
+
+    /**
+     * Whether nodes nobody has claimed are drawn at all. Turning this off leaves them as bare map,
+     * so only territory somebody holds is painted; the data is still cached either way.
+     */
+    public boolean isNodeShowUnclaimed() {
+        return nodeShowUnclaimed;
+    }
+
+    public void setNodeShowUnclaimed(boolean nodeShowUnclaimed) {
+        this.nodeShowUnclaimed = nodeShowUnclaimed;
+    }
+
+    public int getNodeQuerySize() {
+        return nodeQuerySize;
+    }
+
+    public void setNodeQuerySize(int nodeQuerySize) {
+        this.nodeQuerySize = NodeProtocol.clampQuerySize(nodeQuerySize);
     }
 }

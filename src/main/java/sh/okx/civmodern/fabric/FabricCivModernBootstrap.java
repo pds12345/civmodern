@@ -8,8 +8,10 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientSuggestionProvider;
 import org.apache.logging.log4j.LogManager;
@@ -22,6 +24,8 @@ import sh.okx.civmodern.common.events.JoinEvent;
 import sh.okx.civmodern.common.events.LeaveEvent;
 import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
 import sh.okx.civmodern.common.events.WorldRenderLastEvent;
+import sh.okx.civmodern.common.map.nodes.CivNodesPayload;
+import sh.okx.civmodern.common.map.nodes.NodeApiClient;
 
 public class FabricCivModernBootstrap implements ClientModInitializer {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -35,6 +39,20 @@ public class FabricCivModernBootstrap implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         FabricCivModernBootstrap.mod.init();
+
+        // Registering the payload type and a global receiver here is what puts civnodes:v1 into
+        // the minecraft:register Fabric sends just after join. The server will not send us
+        // anything at all until it has seen that registration.
+        PayloadTypeRegistry.playS2C().register(CivNodesPayload.TYPE, CivNodesPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(CivNodesPayload.TYPE, CivNodesPayload.CODEC);
+        ClientPlayNetworking.registerGlobalReceiver(CivNodesPayload.TYPE, (payload, context) -> {
+            // The mod is only enabled on CLIENT_STARTED, so the session may not exist yet.
+            NodeApiClient nodeApi = mod.getNodeApi();
+            if (nodeApi != null) {
+                nodeApi.handle(payload.data());
+            }
+        });
+
         ClientLifecycleEvents.CLIENT_STARTED.register(e -> mod.enable());
         ClientTickEvents.START_CLIENT_TICK.register((client) -> {
             mod.eventBus.post(new ClientTickEvent());

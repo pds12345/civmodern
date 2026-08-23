@@ -21,6 +21,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientSuggestionProvider;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,9 @@ import sh.okx.civmodern.common.macro.AttackMacro;
 import sh.okx.civmodern.common.macro.HoldKeyMacro;
 import sh.okx.civmodern.common.macro.IceRoadMacro;
 import sh.okx.civmodern.common.map.*;
+import sh.okx.civmodern.common.map.nodes.NodeApiClient;
+import sh.okx.civmodern.common.map.nodes.NodeInfo;
+import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 import sh.okx.civmodern.common.map.screen.MapScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.parser.ParsedWaypoint;
@@ -62,6 +67,7 @@ public abstract class AbstractCivModernMod {
 
     private WorldListener worlds;
     private AutoNavigation autoNavigation;
+    private NodeApiClient nodeApi;
 
     public final EventBus eventBus = new EventBus("CivModernEvents");
 
@@ -135,12 +141,15 @@ public abstract class AbstractCivModernMod {
         loadRadar();
 
         this.worlds = new WorldListener(config, colourProvider);
+        this.nodeApi = new NodeApiClient(config);
 
         this.eventBus.register(this);
 
         this.eventBus.register(this.worlds);
 
         this.eventBus.register(this.radar);
+
+        this.eventBus.register(this.nodeApi);
 
         Options options = Minecraft.getInstance().options;
         this.eventBus.register(new HoldKeyMacro(this.holdLeftBinding, options.keyAttack));
@@ -171,12 +180,58 @@ public abstract class AbstractCivModernMod {
             if (!InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)) {
                 this.worlds.getWaypoints().setTarget(waypoint);
             } else {
-                MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints());
+                MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints());
                 screen.setNewWaypoint(waypoint);
                 Minecraft.getInstance().setScreen(screen);
             }
             return 0;
         })));
+
+        // Client-side mirror of the server's /nodeapidump: shows what our decoder made of the
+        // last S2C_REGION, so a disagreement with /nodeprint can be pinned on one side or the other.
+        registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_nodedump").executes(context -> {
+            dumpLastRegion();
+            return 0;
+        }));
+    }
+
+    private void dumpLastRegion() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return;
+        }
+        NodeProtocol.Region region = this.nodeApi == null ? null : this.nodeApi.getLastRegion();
+        if (region == null) {
+            player.displayClientMessage(Component.translatable("civmodern.nodes.dump.none"), false);
+            return;
+        }
+
+        player.displayClientMessage(Component.literal("civnodes:v1 last region — origin %d,%d size %d, %d palette entries, %d byte frame"
+            .formatted(region.originChunkX(), region.originChunkZ(), region.size(), region.palette().length, region.frameLength())), false);
+
+        for (int i = 0; i < region.palette().length; i++) {
+            NodeInfo node = region.palette()[i];
+            player.displayClientMessage(Component.literal("  [%d] id=%d flags=0x%02X colour=%d name=%s group=%s%s"
+                .formatted(i, node.nodeId(), node.flags(), node.colorIndex(),
+                    node.name() == null ? "-" : node.name(),
+                    node.groupName() == null ? "-" : node.groupName(),
+                    node.bastionInWindow() ? " bastion=%d,%d".formatted(node.bastionChunkX(), node.bastionChunkZ()) : "")), false);
+        }
+
+        // Upper case means protected, '.' means no node owns the chunk.
+        for (int dz = 0; dz < region.size(); dz++) {
+            StringBuilder row = new StringBuilder(region.size());
+            for (int dx = 0; dx < region.size(); dx++) {
+                int index = region.indexAt(dx, dz);
+                if (index == NodeProtocol.NO_NODE) {
+                    row.append('.');
+                } else {
+                    char c = (char) ('a' + (index % 26));
+                    row.append(region.isProtected(dx, dz) ? Character.toUpperCase(c) : c);
+                }
+            }
+            player.displayClientMessage(Component.literal(row.toString()), false);
+        }
     }
 
     @Subscribe
@@ -188,7 +243,7 @@ public abstract class AbstractCivModernMod {
         }
         while (mapBinding.consumeClick()) {
             if (worlds.getCache() != null) {
-                Minecraft.getInstance().setScreen(new MapScreen(this, this.mapBinding, config, worlds.getCache(), autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints()));
+                Minecraft.getInstance().setScreen(new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints()));
             }
         }
         while (minimapZoomBinding.consumeClick()) {
@@ -237,6 +292,10 @@ public abstract class AbstractCivModernMod {
 
     public WorldListener getWorldListener() {
         return worlds;
+    }
+
+    public NodeApiClient getNodeApi() {
+        return nodeApi;
     }
 
     public CivMapConfig getConfig() {

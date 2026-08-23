@@ -50,7 +50,6 @@ public class CivMapConfig {
     private boolean waypointRenderingEnabled;
     private float minimapZoom;
     private boolean cratesAreCompacted;
-    private boolean showRepairCost;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
     private int borderColour;
@@ -97,7 +96,6 @@ public class CivMapConfig {
         this.waypointRenderingEnabled = Boolean.parseBoolean(properties.getProperty("waypoint_rendering_enabled", "true"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
-        this.showRepairCost = Boolean.parseBoolean(properties.getProperty("show_repair_cost", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
@@ -150,7 +148,6 @@ public class CivMapConfig {
             properties.setProperty("waypoint_rendering_enabled", Boolean.toString(waypointRenderingEnabled));
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
-            properties.setProperty("show_repair_cost", Boolean.toString(showRepairCost));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
@@ -433,14 +430,6 @@ public class CivMapConfig {
 
     public void setCratesAreCompacted(boolean cratesAreCompacted) {
         this.cratesAreCompacted = cratesAreCompacted;
-    }
-
-    public boolean isShowRepairCost() {
-        return showRepairCost;
-    }
-
-    public void setShowRepairCost(boolean showRepairCost) {
-        this.showRepairCost = showRepairCost;
     }
 
     public boolean isRadarLogarithm() {

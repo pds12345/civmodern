@@ -1,0 +1,14 @@
+accessWidener	v2	named
+
+# Widenings required by the vendored owo-ui tree (src/main/java/sh/okx/civmodern/common/ui).
+# Ported from owo-lib's owo.accesswidener, narrowed to what this subset actually touches.
+
+# OwoUIAdapter mounts itself as a screen child.
+accessible	method	net/minecraft/client/gui/screens/Screen	addRenderableWidget	(Lnet/minecraft/client/gui/components/events/GuiEventListener;)Lnet/minecraft/client/gui/components/events/GuiEventListener;
+
+# OwoUIGraphics extends GuiGraphics and needs its scissor stack plus the tooltip hook.
+accessible	class	net/minecraft/client/gui/GuiGraphics$ScissorStack
+extendable	method	net/minecraft/client/gui/GuiGraphics	setTooltipForNextFrameInternal	(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;Z)V
+
+# GuiRendererMixin#fixNonQuadIndexing inspects the draw record.
+accessible	class	net/minecraft/client/gui/render/GuiRenderer$Draw

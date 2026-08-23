@@ -27,5 +27,19 @@
     },
     "mixins": [
         "civmodern.common.mixins.json"
-    ]
+    ],
+    "accessWidener": "civmodern.accesswidener",
+    "custom": {
+        "loom:injected_interfaces": {
+            "net/minecraft/class_339": [
+                "sh/okx/civmodern/common/ui/inject/UIComponentStub"
+            ],
+            "net/minecraft/class_342": [
+                "sh/okx/civmodern/common/ui/inject/GreedyInputUIComponent"
+            ],
+            "net/minecraft/class_332": [
+                "sh/okx/civmodern/common/ui/util/MatrixStackTransformer"
+            ]
+        }
+    }
 }

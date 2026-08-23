@@ -4,8 +4,8 @@ import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.regex.Pattern;
 
-import io.wispforest.owo.ui.core.CursorStyle;
-import io.wispforest.owo.ui.core.Sizing;
+import sh.okx.civmodern.common.ui.core.CursorStyle;
+import sh.okx.civmodern.common.ui.core.Sizing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
@@ -26,7 +26,7 @@ public class ColourTextEditBox extends EditBox {
 //        setColourFromInt(colourGetter.getAsInt());
     }
 
-    protected CursorStyle owo$preferredCursorStyle() {
+    protected CursorStyle civmodern$preferredCursorStyle() {
         return CursorStyle.TEXT;
     }
 

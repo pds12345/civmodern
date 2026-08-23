@@ -1,13 +1,13 @@
 package sh.okx.civmodern.common.map.screen;
 
-import io.wispforest.owo.ui.component.UIComponents;
-import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.Insets;
-import io.wispforest.owo.ui.core.OwoUIAdapter;
-import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
+import sh.okx.civmodern.common.ui.component.UIComponents;
+import sh.okx.civmodern.common.ui.container.UIContainers;
+import sh.okx.civmodern.common.ui.container.FlowLayout;
+import sh.okx.civmodern.common.ui.core.Color;
+import sh.okx.civmodern.common.ui.core.Insets;
+import sh.okx.civmodern.common.ui.core.OwoUIAdapter;
+import sh.okx.civmodern.common.ui.core.Sizing;
+import sh.okx.civmodern.common.ui.core.Surface;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;

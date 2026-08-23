@@ -13,7 +13,7 @@ import net.minecraft.resources.Identifier;
 
 public class CivModernPipelines {
     public static final RenderPipeline GUI_TRIANGLE_STRIP_BLEND = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_SNIPPET)
-        .withLocation(Identifier.fromNamespaceAndPath("owo", "pipeline/gui_triangle_strip2"))
+        .withLocation(Identifier.fromNamespaceAndPath("civmodern", "pipeline/gui_triangle_strip2"))
         .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLE_STRIP)
         .build());
     public static final RenderPipeline GUI_QUADS = RenderPipeline.builder(RenderPipelines.GUI_SNIPPET)

@@ -1,9 +1,9 @@
 package sh.okx.civmodern.common.map.screen;
 
 import com.mojang.blaze3d.platform.Window;
-import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.OwoUIPipelines;
-import io.wispforest.owo.ui.renderstate.LineElementRenderState;
+import sh.okx.civmodern.common.ui.core.Color;
+import sh.okx.civmodern.common.ui.core.OwoUIPipelines;
+import sh.okx.civmodern.common.ui.renderstate.LineElementRenderState;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

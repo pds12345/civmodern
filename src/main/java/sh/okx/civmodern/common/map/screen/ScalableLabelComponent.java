@@ -1,22 +1,19 @@
 package sh.okx.civmodern.common.map.screen;
 
-import io.wispforest.owo.ui.base.BaseUIComponent;
-import io.wispforest.owo.ui.core.AnimatableProperty;
-import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.OwoUIGraphics;
-import io.wispforest.owo.ui.core.Size;
-import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.VerticalAlignment;
-import io.wispforest.owo.ui.parsing.UIModel;
-import io.wispforest.owo.ui.parsing.UIParsing;
-import io.wispforest.owo.util.Observable;
+import sh.okx.civmodern.common.ui.base.BaseUIComponent;
+import sh.okx.civmodern.common.ui.core.AnimatableProperty;
+import sh.okx.civmodern.common.ui.core.Color;
+import sh.okx.civmodern.common.ui.core.HorizontalAlignment;
+import sh.okx.civmodern.common.ui.core.OwoUIGraphics;
+import sh.okx.civmodern.common.ui.core.Size;
+import sh.okx.civmodern.common.ui.core.Sizing;
+import sh.okx.civmodern.common.ui.core.VerticalAlignment;
+import sh.okx.civmodern.common.ui.observable.Observable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
-import org.w3c.dom.Element;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -289,17 +286,4 @@ public class ScalableLabelComponent extends BaseUIComponent {
         return null;
     }
 
-    @Override
-    public void parseProperties(UIModel model, Element element, Map<String, Element> children) {
-        super.parseProperties(model, element, children);
-        UIParsing.apply(children, "text", UIParsing::parseText, this::text);
-        UIParsing.apply(children, "max-width", UIParsing::parseUnsignedInt, this::maxWidth);
-        UIParsing.apply(children, "color", Color::parse, this::color);
-        UIParsing.apply(children, "shadow", UIParsing::parseBool, this::shadow);
-        UIParsing.apply(children, "line-height", UIParsing::parseUnsignedInt, this::lineHeight);
-        UIParsing.apply(children, "line-spacing", UIParsing::parseUnsignedInt, this::lineSpacing);
-
-        UIParsing.apply(children, "vertical-text-alignment", VerticalAlignment::parse, this::verticalTextAlignment);
-        UIParsing.apply(children, "horizontal-text-alignment", HorizontalAlignment::parse, this::horizontalTextAlignment);
-    }
 }

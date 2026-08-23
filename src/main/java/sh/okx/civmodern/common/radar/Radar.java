@@ -1,11 +1,11 @@
 package sh.okx.civmodern.common.radar;
 
 import com.google.common.eventbus.Subscribe;
-import io.wispforest.owo.ui.core.Color;
-import io.wispforest.owo.ui.core.OwoUIPipelines;
-import io.wispforest.owo.ui.renderstate.CircleElementRenderState;
-import io.wispforest.owo.ui.renderstate.LineElementRenderState;
-import io.wispforest.owo.ui.renderstate.RingElementRenderState;
+import sh.okx.civmodern.common.ui.core.Color;
+import sh.okx.civmodern.common.ui.core.OwoUIPipelines;
+import sh.okx.civmodern.common.ui.renderstate.CircleElementRenderState;
+import sh.okx.civmodern.common.ui.renderstate.LineElementRenderState;
+import sh.okx.civmodern.common.ui.renderstate.RingElementRenderState;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

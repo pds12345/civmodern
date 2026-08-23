@@ -1,5 +1,9 @@
 package sh.okx.civmodern.common;
 
+import sh.okx.civmodern.common.ui.util.NinePatchTexture;
+import sh.okx.civmodern.common.ui.core.OwoUIPipelines;
+import net.minecraft.server.packs.PackType;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import com.google.common.eventbus.Subscribe;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.InputConstants.Type;
@@ -126,6 +130,11 @@ public abstract class AbstractCivModernMod {
     public final void init() {
         SpecialGuiElementRegistry.register(ctx -> new BlitRenderer(ctx.vertexConsumers()));
         CivModernPipelines.register();
+
+        // Vendored owo-ui: owo registered these from its own ClientModInitializer.
+        OwoUIPipelines.register();
+        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
+            .registerReloadListener(new NinePatchTexture.MetadataLoader());
 
         registerKeyBinding(this.configBinding);
         registerKeyBinding(this.holdLeftBinding);

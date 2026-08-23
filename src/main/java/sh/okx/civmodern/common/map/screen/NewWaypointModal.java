@@ -1,16 +1,16 @@
 package sh.okx.civmodern.common.map.screen;
 
-import io.wispforest.owo.ui.component.UIComponents;
-import io.wispforest.owo.ui.component.TextBoxComponent;
-import io.wispforest.owo.ui.container.UIContainers;
-import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.HorizontalAlignment;
-import io.wispforest.owo.ui.core.Insets;
-import io.wispforest.owo.ui.core.OwoUIAdapter;
-import io.wispforest.owo.ui.core.Positioning;
-import io.wispforest.owo.ui.core.Sizing;
-import io.wispforest.owo.ui.core.Surface;
-import io.wispforest.owo.ui.core.VerticalAlignment;
+import sh.okx.civmodern.common.ui.component.UIComponents;
+import sh.okx.civmodern.common.ui.component.TextBoxComponent;
+import sh.okx.civmodern.common.ui.container.UIContainers;
+import sh.okx.civmodern.common.ui.container.FlowLayout;
+import sh.okx.civmodern.common.ui.core.HorizontalAlignment;
+import sh.okx.civmodern.common.ui.core.Insets;
+import sh.okx.civmodern.common.ui.core.OwoUIAdapter;
+import sh.okx.civmodern.common.ui.core.Positioning;
+import sh.okx.civmodern.common.ui.core.Sizing;
+import sh.okx.civmodern.common.ui.core.Surface;
+import sh.okx.civmodern.common.ui.core.VerticalAlignment;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;

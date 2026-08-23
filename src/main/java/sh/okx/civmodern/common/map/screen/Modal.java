@@ -1,7 +1,7 @@
 package sh.okx.civmodern.common.map.screen;
 
-import io.wispforest.owo.ui.core.OwoUIAdapter;
-import io.wispforest.owo.ui.core.ParentUIComponent;
+import sh.okx.civmodern.common.ui.core.OwoUIAdapter;
+import sh.okx.civmodern.common.ui.core.ParentUIComponent;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;

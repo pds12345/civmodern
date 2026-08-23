@@ -19,3 +19,14 @@ classes/
 *.launch
 
 dist/
+
+# Beads task-tracking workspace (local only)
+.beads/
+.claude/
+CLAUDE.md
+.agents/
+.codex/
+AGENTS.md
+.dolt/
+*.db
+.beads-credential-key

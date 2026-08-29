@@ -8,6 +8,7 @@
     "key.civmodern.minimapzoom": "Cycle minimap zoom",
     "key.civmodern.newwaypoint": "Create waypoint here",
     "key.civmodern.minimapnodes": "Toggle minimap node overlay",
+    "key.civmodern.togglewaypoints": "Toggle waypoints",
     "category.civmodern": "${mod_name}",
     "civmodern.screen.main.title": "Civ Modern Config",
     "civmodern.screen.main.radar": "Radar Settings",

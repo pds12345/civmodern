@@ -63,6 +63,7 @@ public abstract class AbstractCivModernMod {
     private final KeyMapping minimapZoomBinding;
     private final KeyMapping newWaypointBinding;
     private final KeyMapping minimapNodesBinding;
+    private final KeyMapping toggleWaypointsBinding;
 
     private CivMapConfig config;
     private ColourProvider colourProvider;
@@ -129,6 +130,12 @@ public abstract class AbstractCivModernMod {
             GLFW.GLFW_KEY_Y,
             CIVMODERN_CATEGORY
         );
+        this.toggleWaypointsBinding = new KeyMapping(
+            "key.civmodern.togglewaypoints",
+            Type.KEYSYM,
+            GLFW.GLFW_KEY_K,
+            CIVMODERN_CATEGORY
+        );
 
 
         if (INSTANCE == null) {
@@ -151,6 +158,7 @@ public abstract class AbstractCivModernMod {
         registerKeyBinding(this.minimapZoomBinding);
         registerKeyBinding(this.newWaypointBinding);
         registerKeyBinding(this.minimapNodesBinding);
+        registerKeyBinding(this.toggleWaypointsBinding);
     }
 
     public final void enable() {
@@ -276,6 +284,11 @@ public abstract class AbstractCivModernMod {
             // Cycles off -> solid -> translucent -> off. Saved at once, since unlike the map
             // screen's toggle there is no screen-close moment to piggyback the save on.
             config.setMinimapNodeOverlayMode(config.getMinimapNodeOverlayMode().next());
+            config.save();
+        }
+        while (toggleWaypointsBinding.consumeClick()) {
+            // Same reasoning as minimapNodesBinding above: save immediately.
+            config.setWaypointRenderingEnabled(!config.isWaypointRenderingEnabled());
             config.save();
         }
     }

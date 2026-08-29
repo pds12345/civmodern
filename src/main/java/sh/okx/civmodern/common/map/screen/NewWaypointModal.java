@@ -10,6 +10,7 @@ import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Positioning;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
+import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -166,6 +167,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
         this.layout.inflateAndMount();
         colourBox.moveCursorToStart(false);
+        this.layout.rootComponent.focusHandler().focus(nameBox, UIComponent.FocusSource.KEYBOARD_CYCLE);
     }
 
     @Override

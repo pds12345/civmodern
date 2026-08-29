@@ -30,6 +30,10 @@ public class QuickWaypointScreen extends Screen {
         modal.open("", player.getBlockX(), player.getBlockY() + 1, player.getBlockZ());
         modal.setVisible(true);
         addRenderableWidget(modal);
+        // Route keyboard input to the modal from the start, so typing works without a click.
+        // setInitialFocus would be the idiomatic call, but it needs the widget to implement
+        // nextFocusPath(), which Modal doesn't — so set the focused child directly.
+        setFocused(modal);
     }
 
     @Override

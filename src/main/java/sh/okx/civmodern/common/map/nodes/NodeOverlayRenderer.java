@@ -39,6 +39,13 @@ public final class NodeOverlayRenderer {
      */
     private static final int CHUNK_GRID_COLOUR = 0x66080B0E;
 
+    /**
+     * The seam where territory meets chunks the server has never described — the edge of what we
+     * know, not necessarily the edge of the node. Light where real borders are near-black, and
+     * dashed with finer ticks than the chunk grid, so it reads as tentative next to both.
+     */
+    private static final int DATA_EDGE_COLOUR = 0xCCC3CBD1;
+
     // Status colours. Deliberately fixed rather than varied per node: the fill answers "can I
     // build here", and the seams answer "whose is it".
     private static final int COLOUR_FRIENDLY = 0x33A457;
@@ -187,14 +194,22 @@ public final class NodeOverlayRenderer {
         int width = (maxChunkX - minChunkX) / step + 1;
         long[] ids = new long[width];
         boolean[] protectedHere = new boolean[width];
+        boolean[] known = new boolean[width];
         long[] northIds = new long[width];
+        boolean[] northKnown = new boolean[width];
         Arrays.fill(northIds, NO_ID);
+
+        // The fine ticking of the edge-of-data seam: twice the cadence of the chunk grid, so the
+        // two dashed lines stay tellable apart even where they meet at a corner.
+        int edgeDash = Math.max(1, Math.round(chunkPixels / 12f));
+        int edgeGap = Math.max(1, Math.round(chunkPixels / 10f));
+        int edgeColour = fade(DATA_EDGE_COLOUR, ink);
 
         for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ += step) {
             int top = screenY(chunkZ, originZ, scale);
             int bottom = screenY(chunkZ + step, originZ, scale);
 
-            readRow(cache, minChunkX, chunkZ, width, step, ids, protectedHere);
+            readRow(cache, minChunkX, chunkZ, width, step, ids, protectedHere, known);
             if (!config.isNodeShowUnclaimed()) {
                 dropUnclaimed(palette, ids, protectedHere, width);
             }
@@ -223,13 +238,15 @@ public final class NodeOverlayRenderer {
                 // Both need chunks several pixels across, which is far inside the zoom range where
                 // the step is 1, so these still walk real neighbouring chunks.
                 if (borders || grid) {
-                    drawEdges(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale,
-                        borders, borderWidth, grid, dash, dashGap,
-                        fade(BORDER_COLOUR, ink), fade(CHUNK_GRID_COLOUR, ink));
+                    drawEdges(guiGraphics, ids, northIds, known, northKnown, minChunkX, width, top, bottom,
+                        originX, scale, borders, borderWidth, grid, dash, dashGap,
+                        fade(BORDER_COLOUR, ink), fade(CHUNK_GRID_COLOUR, ink),
+                        edgeColour, edgeDash, edgeGap);
                 }
             }
 
             System.arraycopy(ids, 0, northIds, 0, width);
+            System.arraycopy(known, 0, northKnown, 0, width);
         }
 
         if (chunkPixels >= MIN_BASTION_CHUNK_PIXELS) {
@@ -311,7 +328,7 @@ public final class NodeOverlayRenderer {
      * has to be smaller than the sample before it can slip between two of them.
      */
     private static void readRow(NodeCache cache, int minChunkX, int chunkZ, int width, int step,
-                                long[] ids, boolean[] protectedHere) {
+                                long[] ids, boolean[] protectedHere, boolean[] known) {
         int lz = chunkZ & (NodeRegion.CHUNKS - 1);
         NodeRegion region = null;
         int regionX = Integer.MIN_VALUE;
@@ -325,6 +342,7 @@ public final class NodeOverlayRenderer {
             }
 
             int lx = chunkX & (NodeRegion.CHUNKS - 1);
+            known[i] = region != null && region.isKnown(lx, lz);
             if (region == null || !region.hasNode(lx, lz)) {
                 ids[i] = NO_ID;
                 protectedHere[i] = false;
@@ -391,12 +409,18 @@ public final class NodeOverlayRenderer {
      * <p>The two never stack on one edge, so a seam always stays the heavier line. With seams
      * turned off the grid takes the node boundaries over as well, since there is nothing left to
      * confuse them with.
+     *
+     * <p>A seam against ground the server has never described is not drawn solid: that line is the
+     * edge of our data, not necessarily of the node, so it gets the light finely-ticked dash
+     * instead. Ground the server has said is empty keeps the solid border — that edge is real.
      */
     private static void drawEdges(GuiGraphics guiGraphics, long[] ids, long[] northIds,
+                                  boolean[] known, boolean[] northKnown,
                                   int minChunkX, int width, int top, int bottom,
                                   double originX, float scale,
                                   boolean seams, int borderWidth, boolean grid, int dash, int gap,
-                                  int borderColour, int gridColour) {
+                                  int borderColour, int gridColour,
+                                  int edgeColour, int edgeDash, int edgeGap) {
         for (int i = 0; i < width; i++) {
             long id = ids[i];
             long west = i == 0 ? NO_ID : ids[i - 1];
@@ -407,15 +431,28 @@ public final class NodeOverlayRenderer {
 
             // Differing implies at least one side is a real node, so no extra check is needed.
             if (seams && id != west) {
-                guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, borderColour);
+                // Off-screen column: i == 0 never shows, so its west neighbour can pass as known.
+                boolean unknownSide = (id == NO_ID && !known[i]) || (i > 0 && west == NO_ID && !known[i - 1]);
+                if (unknownSide) {
+                    dashedVertical(guiGraphics, left, top, bottom, edgeDash, edgeGap,
+                        Math.min(left + borderWidth, right) - left, edgeColour);
+                } else {
+                    guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, borderColour);
+                }
             } else if (grid && id != NO_ID) {
-                dashedVertical(guiGraphics, left, top, bottom, dash, gap, gridColour);
+                dashedVertical(guiGraphics, left, top, bottom, dash, gap, 1, gridColour);
             }
 
             if (seams && id != north) {
-                guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), borderColour);
+                boolean unknownSide = (id == NO_ID && !known[i]) || (north == NO_ID && !northKnown[i]);
+                if (unknownSide) {
+                    dashedHorizontal(guiGraphics, left, right, top, edgeDash, edgeGap,
+                        Math.min(top + borderWidth, bottom) - top, edgeColour);
+                } else {
+                    guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), borderColour);
+                }
             } else if (grid && id != NO_ID) {
-                dashedHorizontal(guiGraphics, left, right, top, dash, gap, gridColour);
+                dashedHorizontal(guiGraphics, left, right, top, dash, gap, 1, gridColour);
             }
         }
     }
@@ -427,7 +464,8 @@ public final class NodeOverlayRenderer {
      * short of both corners and the grid does not close up into something that could pass for a
      * solid outline around every chunk.
      */
-    private static void dashedVertical(GuiGraphics guiGraphics, int x, int top, int bottom, int dash, int gap, int colour) {
+    private static void dashedVertical(GuiGraphics guiGraphics, int x, int top, int bottom, int dash, int gap,
+                                       int lineWidth, int colour) {
         int length = bottom - top;
         int count = (length + gap) / (dash + gap);
         if (count < 1) {
@@ -435,12 +473,13 @@ public final class NodeOverlayRenderer {
         }
         int y = top + (length - (count * dash + (count - 1) * gap)) / 2;
         for (int i = 0; i < count; i++, y += dash + gap) {
-            guiGraphics.fill(x, y, x + 1, y + dash, colour);
+            guiGraphics.fill(x, y, x + lineWidth, y + dash, colour);
         }
     }
 
     /** As {@link #dashedVertical}, along a chunk's north edge. */
-    private static void dashedHorizontal(GuiGraphics guiGraphics, int left, int right, int y, int dash, int gap, int colour) {
+    private static void dashedHorizontal(GuiGraphics guiGraphics, int left, int right, int y, int dash, int gap,
+                                         int lineWidth, int colour) {
         int length = right - left;
         int count = (length + gap) / (dash + gap);
         if (count < 1) {
@@ -448,7 +487,7 @@ public final class NodeOverlayRenderer {
         }
         int x = left + (length - (count * dash + (count - 1) * gap)) / 2;
         for (int i = 0; i < count; i++, x += dash + gap) {
-            guiGraphics.fill(x, y, x + dash, y + 1, colour);
+            guiGraphics.fill(x, y, x + dash, y + lineWidth, colour);
         }
     }
 

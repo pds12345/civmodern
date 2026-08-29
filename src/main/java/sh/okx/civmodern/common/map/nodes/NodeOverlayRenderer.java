@@ -3,7 +3,9 @@ package sh.okx.civmodern.common.map.nodes;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.network.chat.Component;
+import org.joml.Matrix3x2f;
 import sh.okx.civmodern.common.CivMapConfig;
 
 import java.util.ArrayList;
@@ -182,9 +184,13 @@ public final class NodeOverlayRenderer {
 
         // Dashes are measured off the chunk rather than fixed, so a chunk carries the same three
         // dashes a side at every zoom and the cost of the grid does not grow as the map is zoomed.
+        // The pattern is computed once from the chunk size, not per edge from rounded screen
+        // bounds: recomputing it per edge is what made the dashes crawl against the map while
+        // dragging, as each edge's rounded length flickered by a pixel and re-centred its dashes.
         boolean grid = config.isNodeChunkGrid() && chunkPixels >= MIN_GRID_CHUNK_PIXELS;
         int dash = Math.max(1, Math.round(chunkPixels / 6f));
         int dashGap = Math.max(1, Math.round(chunkPixels / 5f));
+        int[] gridPattern = dashPattern(Math.round(chunkPixels), dash, dashGap);
 
         // The palette is copied once rather than locked per chunk, and each row is resolved into
         // plain arrays so the fill and border passes are array reads.
@@ -203,7 +209,15 @@ public final class NodeOverlayRenderer {
         // two dashed lines stay tellable apart even where they meet at a corner.
         int edgeDash = Math.max(1, Math.round(chunkPixels / 12f));
         int edgeGap = Math.max(1, Math.round(chunkPixels / 10f));
+        int[] edgePattern = dashPattern(Math.round(chunkPixels), edgeDash, edgeGap);
         int edgeColour = fade(DATA_EDGE_COLOUR, ink);
+
+        // One GUI element for the whole layer. Submitting each fill separately is a render-state
+        // element per quad, and at grid zoom levels that is thousands of elements a frame.
+        NodeOverlayQuadBatch batch = new NodeOverlayQuadBatch(
+            new Matrix3x2f(guiGraphics.pose()),
+            guiGraphics.scissorStack.peek(),
+            new ScreenRectangle(0, 0, screenWidth, screenHeight));
 
         for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ += step) {
             int top = screenY(chunkZ, originZ, scale);
@@ -225,23 +239,23 @@ public final class NodeOverlayRenderer {
 
                 for (int i = 1; i < width; i++) {
                     if (ids[i] != runId || protectedHere[i] != runProtected) {
-                        fillRun(guiGraphics, colourOf(palette, runId, runProtected, alpha),
+                        fillRun(batch, colourOf(palette, runId, runProtected, alpha),
                             minChunkX + runFrom * step, minChunkX + i * step, top, bottom, originX, scale);
                         runId = ids[i];
                         runProtected = protectedHere[i];
                         runFrom = i;
                     }
                 }
-                fillRun(guiGraphics, colourOf(palette, runId, runProtected, alpha),
+                fillRun(batch, colourOf(palette, runId, runProtected, alpha),
                     minChunkX + runFrom * step, minChunkX + width * step, top, bottom, originX, scale);
 
                 // Both need chunks several pixels across, which is far inside the zoom range where
                 // the step is 1, so these still walk real neighbouring chunks.
                 if (borders || grid) {
-                    drawEdges(guiGraphics, ids, northIds, known, northKnown, minChunkX, width, top, bottom,
-                        originX, scale, borders, borderWidth, grid, dash, dashGap,
+                    drawEdges(batch, ids, northIds, known, northKnown, minChunkX, width, top, bottom,
+                        originX, scale, borders, borderWidth, grid, dash, gridPattern,
                         fade(BORDER_COLOUR, ink), fade(CHUNK_GRID_COLOUR, ink),
-                        edgeColour, edgeDash, edgeGap);
+                        edgeColour, edgeDash, edgePattern);
                 }
             }
 
@@ -250,9 +264,29 @@ public final class NodeOverlayRenderer {
         }
 
         if (chunkPixels >= MIN_BASTION_CHUNK_PIXELS) {
-            drawBastions(guiGraphics, palette, minChunkX, maxChunkX, minChunkZ, maxChunkZ,
+            drawBastions(batch, palette, minChunkX, maxChunkX, minChunkZ, maxChunkZ,
                 originX, originZ, scale, chunkPixels, ink);
         }
+
+        if (!batch.isEmpty()) {
+            guiGraphics.guiRenderState.submitGuiElement(batch);
+        }
+    }
+
+    /**
+     * Start offsets of each dash along a chunk edge, measured from the chunk corner. Derived from
+     * the chunk size alone so the pattern is rigid relative to the chunk at a given zoom: the
+     * dashes slide with the map instead of re-centring themselves every frame. Centred with a
+     * short setback from both corners, so the grid never closes up into a solid outline.
+     */
+    private static int[] dashPattern(int length, int dash, int gap) {
+        int count = Math.max(1, (length + gap) / (dash + gap));
+        int pad = Math.max(0, (length - (count * dash + (count - 1) * gap)) / 2);
+        int[] offsets = new int[count];
+        for (int i = 0; i < count; i++) {
+            offsets[i] = pad + i * (dash + gap);
+        }
+        return offsets;
     }
 
     /**
@@ -263,7 +297,7 @@ public final class NodeOverlayRenderer {
      * position sticks around in the cache once seen, so the marker keeps showing even after the
      * bastion falls outside the queried window.
      */
-    private static void drawBastions(GuiGraphics guiGraphics, Int2ObjectMap<NodeInfo> palette,
+    private static void drawBastions(NodeOverlayQuadBatch batch, Int2ObjectMap<NodeInfo> palette,
                                      int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ,
                                      double originX, double originZ, float scale, float chunkPixels,
                                      float ink) {
@@ -292,21 +326,21 @@ public final class NodeOverlayRenderer {
             }
 
             // A dark square one pixel out, so the white stays legible on every fill colour.
-            hollowSquare(guiGraphics, left - 1, top - 1, right + 1, bottom + 1, thickness, shadowColour);
-            hollowSquare(guiGraphics, left, top, right, bottom, thickness, markerColour);
+            hollowSquare(batch, left - 1, top - 1, right + 1, bottom + 1, thickness, shadowColour);
+            hollowSquare(batch, left, top, right, bottom, thickness, markerColour);
         }
     }
 
-    private static void hollowSquare(GuiGraphics guiGraphics, int left, int top, int right, int bottom,
+    private static void hollowSquare(NodeOverlayQuadBatch batch, int left, int top, int right, int bottom,
                                      int thickness, int colour) {
         int t = Math.min(thickness, Math.min(right - left, bottom - top) / 2);
         if (t < 1) {
             return;
         }
-        guiGraphics.fill(left, top, right, top + t, colour);
-        guiGraphics.fill(left, bottom - t, right, bottom, colour);
-        guiGraphics.fill(left, top + t, left + t, bottom - t, colour);
-        guiGraphics.fill(right - t, top + t, right, bottom - t, colour);
+        batch.add(left, top, right, top + t, colour);
+        batch.add(left, bottom - t, right, bottom, colour);
+        batch.add(left, top + t, left + t, bottom - t, colour);
+        batch.add(right - t, top + t, right, bottom - t, colour);
     }
 
     /**
@@ -385,16 +419,12 @@ public final class NodeOverlayRenderer {
         }
     }
 
-    private static void fillRun(GuiGraphics guiGraphics, int colour, int fromChunkX, int toChunkX,
+    private static void fillRun(NodeOverlayQuadBatch batch, int colour, int fromChunkX, int toChunkX,
                                 int top, int bottom, double originX, float scale) {
         if (colour == 0) {
             return;
         }
-        int left = screenX(fromChunkX, originX, scale);
-        int right = screenX(toChunkX, originX, scale);
-        if (right > left) {
-            guiGraphics.fill(left, top, right, bottom, colour);
-        }
+        batch.add(screenX(fromChunkX, originX, scale), top, screenX(toChunkX, originX, scale), bottom, colour);
     }
 
     /**
@@ -414,13 +444,13 @@ public final class NodeOverlayRenderer {
      * edge of our data, not necessarily of the node, so it gets the light finely-ticked dash
      * instead. Ground the server has said is empty keeps the solid border — that edge is real.
      */
-    private static void drawEdges(GuiGraphics guiGraphics, long[] ids, long[] northIds,
+    private static void drawEdges(NodeOverlayQuadBatch batch, long[] ids, long[] northIds,
                                   boolean[] known, boolean[] northKnown,
                                   int minChunkX, int width, int top, int bottom,
                                   double originX, float scale,
-                                  boolean seams, int borderWidth, boolean grid, int dash, int gap,
+                                  boolean seams, int borderWidth, boolean grid, int dash, int[] gridPattern,
                                   int borderColour, int gridColour,
-                                  int edgeColour, int edgeDash, int edgeGap) {
+                                  int edgeColour, int edgeDash, int[] edgePattern) {
         for (int i = 0; i < width; i++) {
             long id = ids[i];
             long west = i == 0 ? NO_ID : ids[i - 1];
@@ -434,25 +464,25 @@ public final class NodeOverlayRenderer {
                 // Off-screen column: i == 0 never shows, so its west neighbour can pass as known.
                 boolean unknownSide = (id == NO_ID && !known[i]) || (i > 0 && west == NO_ID && !known[i - 1]);
                 if (unknownSide) {
-                    dashedVertical(guiGraphics, left, top, bottom, edgeDash, edgeGap,
+                    dashedVertical(batch, left, top, bottom, edgePattern, edgeDash,
                         Math.min(left + borderWidth, right) - left, edgeColour);
                 } else {
-                    guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, borderColour);
+                    batch.add(left, top, Math.min(left + borderWidth, right), bottom, borderColour);
                 }
             } else if (grid && id != NO_ID) {
-                dashedVertical(guiGraphics, left, top, bottom, dash, gap, 1, gridColour);
+                dashedVertical(batch, left, top, bottom, gridPattern, dash, 1, gridColour);
             }
 
             if (seams && id != north) {
                 boolean unknownSide = (id == NO_ID && !known[i]) || (north == NO_ID && !northKnown[i]);
                 if (unknownSide) {
-                    dashedHorizontal(guiGraphics, left, right, top, edgeDash, edgeGap,
+                    dashedHorizontal(batch, left, right, top, edgePattern, edgeDash,
                         Math.min(top + borderWidth, bottom) - top, edgeColour);
                 } else {
-                    guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), borderColour);
+                    batch.add(left, top, right, Math.min(top + borderWidth, bottom), borderColour);
                 }
             } else if (grid && id != NO_ID) {
-                dashedHorizontal(guiGraphics, left, right, top, dash, gap, 1, gridColour);
+                dashedHorizontal(batch, left, right, top, gridPattern, dash, 1, gridColour);
             }
         }
     }
@@ -464,30 +494,23 @@ public final class NodeOverlayRenderer {
      * short of both corners and the grid does not close up into something that could pass for a
      * solid outline around every chunk.
      */
-    private static void dashedVertical(GuiGraphics guiGraphics, int x, int top, int bottom, int dash, int gap,
-                                       int lineWidth, int colour) {
-        int length = bottom - top;
-        int count = (length + gap) / (dash + gap);
-        if (count < 1) {
-            return;
-        }
-        int y = top + (length - (count * dash + (count - 1) * gap)) / 2;
-        for (int i = 0; i < count; i++, y += dash + gap) {
-            guiGraphics.fill(x, y, x + lineWidth, y + dash, colour);
+    /**
+     * Lays the precomputed dash pattern down a chunk's west edge. Offsets are measured from the
+     * chunk's own corner, so the dashes are pinned to the chunk and pan with the map; only the
+     * last dash may be clipped where rounding leaves this edge a pixel short of the pattern.
+     */
+    private static void dashedVertical(NodeOverlayQuadBatch batch, int x, int top, int bottom,
+                                       int[] pattern, int dash, int lineWidth, int colour) {
+        for (int offset : pattern) {
+            batch.add(x, top + offset, x + lineWidth, Math.min(top + offset + dash, bottom), colour);
         }
     }
 
     /** As {@link #dashedVertical}, along a chunk's north edge. */
-    private static void dashedHorizontal(GuiGraphics guiGraphics, int left, int right, int y, int dash, int gap,
-                                         int lineWidth, int colour) {
-        int length = right - left;
-        int count = (length + gap) / (dash + gap);
-        if (count < 1) {
-            return;
-        }
-        int x = left + (length - (count * dash + (count - 1) * gap)) / 2;
-        for (int i = 0; i < count; i++, x += dash + gap) {
-            guiGraphics.fill(x, y, x + dash, y + lineWidth, colour);
+    private static void dashedHorizontal(NodeOverlayQuadBatch batch, int left, int right, int y,
+                                         int[] pattern, int dash, int lineWidth, int colour) {
+        for (int offset : pattern) {
+            batch.add(left + offset, y, Math.min(left + offset + dash, right), y + lineWidth, colour);
         }
     }
 

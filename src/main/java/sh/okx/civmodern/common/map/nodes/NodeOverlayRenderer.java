@@ -220,8 +220,8 @@ public final class NodeOverlayRenderer {
             new ScreenRectangle(0, 0, screenWidth, screenHeight));
 
         for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ += step) {
-            int top = screenY(chunkZ, originZ, scale);
-            int bottom = screenY(chunkZ + step, originZ, scale);
+            float top = screenY(chunkZ, originZ, scale);
+            float bottom = screenY(chunkZ + step, originZ, scale);
 
             readRow(cache, minChunkX, chunkZ, width, step, ids, protectedHere, known);
             if (!config.isNodeShowUnclaimed()) {
@@ -317,10 +317,10 @@ public final class NodeOverlayRenderer {
                 continue;
             }
 
-            int left = screenX(chunkX, originX, scale) + inset;
-            int right = screenX(chunkX + 1, originX, scale) - inset;
-            int top = screenY(chunkZ, originZ, scale) + inset;
-            int bottom = screenY(chunkZ + 1, originZ, scale) - inset;
+            float left = screenX(chunkX, originX, scale) + inset;
+            float right = screenX(chunkX + 1, originX, scale) - inset;
+            float top = screenY(chunkZ, originZ, scale) + inset;
+            float bottom = screenY(chunkZ + 1, originZ, scale) - inset;
             if (right - left < 3 || bottom - top < 3) {
                 continue;
             }
@@ -331,9 +331,9 @@ public final class NodeOverlayRenderer {
         }
     }
 
-    private static void hollowSquare(NodeOverlayQuadBatch batch, int left, int top, int right, int bottom,
+    private static void hollowSquare(NodeOverlayQuadBatch batch, float left, float top, float right, float bottom,
                                      int thickness, int colour) {
-        int t = Math.min(thickness, Math.min(right - left, bottom - top) / 2);
+        float t = Math.min(thickness, Math.min(right - left, bottom - top) / 2f);
         if (t < 1) {
             return;
         }
@@ -420,7 +420,7 @@ public final class NodeOverlayRenderer {
     }
 
     private static void fillRun(NodeOverlayQuadBatch batch, int colour, int fromChunkX, int toChunkX,
-                                int top, int bottom, double originX, float scale) {
+                                float top, float bottom, double originX, float scale) {
         if (colour == 0) {
             return;
         }
@@ -446,7 +446,7 @@ public final class NodeOverlayRenderer {
      */
     private static void drawEdges(NodeOverlayQuadBatch batch, long[] ids, long[] northIds,
                                   boolean[] known, boolean[] northKnown,
-                                  int minChunkX, int width, int top, int bottom,
+                                  int minChunkX, int width, float top, float bottom,
                                   double originX, float scale,
                                   boolean seams, int borderWidth, boolean grid, int dash, int[] gridPattern,
                                   int borderColour, int gridColour,
@@ -456,8 +456,8 @@ public final class NodeOverlayRenderer {
             long west = i == 0 ? NO_ID : ids[i - 1];
             long north = northIds[i];
 
-            int left = screenX(minChunkX + i, originX, scale);
-            int right = screenX(minChunkX + i + 1, originX, scale);
+            float left = screenX(minChunkX + i, originX, scale);
+            float right = screenX(minChunkX + i + 1, originX, scale);
 
             // Differing implies at least one side is a real node, so no extra check is needed.
             if (seams && id != west) {
@@ -499,16 +499,16 @@ public final class NodeOverlayRenderer {
      * chunk's own corner, so the dashes are pinned to the chunk and pan with the map; only the
      * last dash may be clipped where rounding leaves this edge a pixel short of the pattern.
      */
-    private static void dashedVertical(NodeOverlayQuadBatch batch, int x, int top, int bottom,
-                                       int[] pattern, int dash, int lineWidth, int colour) {
+    private static void dashedVertical(NodeOverlayQuadBatch batch, float x, float top, float bottom,
+                                       int[] pattern, int dash, float lineWidth, int colour) {
         for (int offset : pattern) {
             batch.add(x, top + offset, x + lineWidth, Math.min(top + offset + dash, bottom), colour);
         }
     }
 
     /** As {@link #dashedVertical}, along a chunk's north edge. */
-    private static void dashedHorizontal(NodeOverlayQuadBatch batch, int left, int right, int y,
-                                         int[] pattern, int dash, int lineWidth, int colour) {
+    private static void dashedHorizontal(NodeOverlayQuadBatch batch, float left, float right, float y,
+                                         int[] pattern, int dash, float lineWidth, int colour) {
         for (int offset : pattern) {
             batch.add(left + offset, y, Math.min(left + offset + dash, right), y + lineWidth, colour);
         }
@@ -560,12 +560,14 @@ public final class NodeOverlayRenderer {
         return (alpha << 24) | (argb & 0xFFFFFF);
     }
 
-    private static int screenX(int chunkX, double originX, float scale) {
-        return (int) Math.round((chunkX * 16.0 - originX) / scale);
+    // Float, not rounded: the map texture below pans at sub-pixel precision, and rounding these
+    // is what made every overlay line re-snap against it by a pixel while dragging.
+    private static float screenX(int chunkX, double originX, float scale) {
+        return (float) ((chunkX * 16.0 - originX) / scale);
     }
 
-    private static int screenY(int chunkZ, double originZ, float scale) {
-        return (int) Math.round((chunkZ * 16.0 - originZ) / scale);
+    private static float screenY(int chunkZ, double originZ, float scale) {
+        return (float) ((chunkZ * 16.0 - originZ) / scale);
     }
 
     // ---------------------------------------------------------------- hover

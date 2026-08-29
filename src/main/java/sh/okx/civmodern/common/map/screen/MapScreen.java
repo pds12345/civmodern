@@ -530,17 +530,19 @@ public class MapScreen extends Screen {
 
         matrices.popMatrix();
 
-        // Set before the widgets render, so hovering a toolbar button still wins the tooltip slot.
+        for (Renderable renderable : ((ScreenAccessor) this).civmodern$getRenderables()) {
+            renderable.render(guiGraphics, mouseX, mouseY, delta);
+        }
+
+        // Set after the widgets render: the frame's first tooltip wins the slot (a later set is
+        // dropped unless the widget is focused), so a hovered toolbar button has claimed it by
+        // now and the node tooltip only fills in when nothing else did.
         if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
             && !editWaypointModal.isVisible() && !positionContextMenu.isVisible()) {
             List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, config, mouseBlockX >> 4, mouseBlockY >> 4);
             if (!lines.isEmpty()) {
                 guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
             }
-        }
-
-        for (Renderable renderable : ((ScreenAccessor) this).civmodern$getRenderables()) {
-            renderable.render(guiGraphics, mouseX, mouseY, delta);
         }
     }
 

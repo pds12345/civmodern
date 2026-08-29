@@ -178,7 +178,7 @@ public class MapScreen extends Screen {
         } else {
             toggleWaypointImage = Identifier.fromNamespaceAndPath("civmodern", "gui/waypointoff.png");
         }
-        ImageButton toggleWaypoints = new ImageButton(this.width - 54, 10, 20, 20, toggleWaypointImage, imbg -> {
+        ImageButton toggleWaypoints = new ImageButton(this.width - 78, 10, 20, 20, toggleWaypointImage, imbg -> {
             config.setWaypointRenderingEnabled(!config.isWaypointRenderingEnabled());
             changedConfig = true;
             if (config.isWaypointRenderingEnabled()) {
@@ -196,7 +196,7 @@ public class MapScreen extends Screen {
         } else {
             togglePlayersImage = Identifier.fromNamespaceAndPath("civmodern", "gui/toggleplayers.png");
         }
-        ImageButton togglePlayers = new ImageButton(this.width - 30, 10, 20, 20, togglePlayersImage, imbg -> {
+        ImageButton togglePlayers = new ImageButton(this.width - 54, 10, 20, 20, togglePlayersImage, imbg -> {
             // TODO use world config
             config.setPlayerWaypointsEnabled(!config.isPlayerWaypointsEnabled());
             changedConfig = true;
@@ -209,7 +209,7 @@ public class MapScreen extends Screen {
         togglePlayers.setTooltip(Tooltip.create(Component.translatable("civmodern.map.players.tooltip")));
         addRenderableWidget(togglePlayers);
 
-        toggleNodes = new ImageButton(this.width - 78, 10, 20, 20, nodeOverlayImage(), imbg -> {
+        toggleNodes = new ImageButton(this.width - 102, 10, 20, 20, nodeOverlayImage(), imbg -> {
             config.setNodeOverlayMode(config.getNodeOverlayMode().next());
             changedConfig = true;
             updateNodeOverlayButton(imbg);
@@ -217,12 +217,19 @@ public class MapScreen extends Screen {
         updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
 
-        ImageButton managerButton = new ImageButton(this.width - 102, 10, 20, 20,
+        ImageButton managerButton = new ImageButton(this.width - 126, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
             Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
         });
         managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.waypointmanager.tooltip")));
         addRenderableWidget(managerButton);
+
+        ImageButton settingsButton = new ImageButton(this.width - 30, 10, 20, 20,
+            Identifier.fromNamespaceAndPath("civmodern", "gui/settings.png"), imbg -> {
+            Minecraft.getInstance().setScreen(mod.newConfigGui(this));
+        });
+        settingsButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.settings.tooltip")));
+        addRenderableWidget(settingsButton);
     }
 
     /** The icon carries the state: full for ON, ghosted for TRANSLUCENT, struck out for OFF. */

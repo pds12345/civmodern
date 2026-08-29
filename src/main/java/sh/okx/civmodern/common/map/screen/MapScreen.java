@@ -24,6 +24,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec2;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
+import org.lwjgl.glfw.GLFW;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.navigation.AutoNavigation;
@@ -822,6 +823,18 @@ public class MapScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        // Esc must close just the open modal, not the map behind it - vanilla Screen would
+        // otherwise treat it as unhandled and close the whole screen.
+        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+            if (newWaypointModal.isVisible()) {
+                newWaypointModal.cancel();
+                return true;
+            }
+            if (editWaypointModal.isVisible()) {
+                editWaypointModal.cancel();
+                return true;
+            }
+        }
         if (this.key.matches(event) && !newWaypointModal.isVisible() && !editWaypointModal.isVisible()) {
             Minecraft.getInstance().setScreen(null);
             return true;

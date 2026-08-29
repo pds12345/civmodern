@@ -75,8 +75,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             this.done();
         }).build();
         Button cancelButton = Button.builder(CommonComponents.GUI_CANCEL, button -> {
-            setVisible(false);
-            this.waypoint = null;
+            this.cancel();
         }).build();
         ImageButton deleteButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/delete.png"), imbg -> {
             if (this.waypoint != null) {
@@ -278,6 +277,11 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         } catch (NumberFormatException ignored) {
 
         }
+    }
+
+    public void cancel() {
+        setVisible(false);
+        this.waypoint = null;
     }
 
     public boolean isTargeting() {

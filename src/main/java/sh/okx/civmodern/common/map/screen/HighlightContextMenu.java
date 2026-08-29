@@ -43,8 +43,10 @@ public class HighlightContextMenu extends Modal<FlowLayout> {
         options.add(clear);
         ScalableLabelComponent convert = new ScalableLabelComponent(Component.literal("Convert to permanent waypoint"), c -> {
             this.setVisible(false);
-            this.waypoints.setTarget(null);
             this.newWaypointModal.open("", highlight.x(), highlight.y(), highlight.z());
+            // Only clear the highlight once the waypoint is actually created, so cancelling
+            // leaves it in place.
+            this.newWaypointModal.setOnDone(() -> this.waypoints.setTarget(null));
             this.newWaypointModal.setVisible(true);
             this.focusNewWaypointModal.run();
         });

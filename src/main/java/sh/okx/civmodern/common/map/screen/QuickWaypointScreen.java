@@ -25,9 +25,10 @@ public class QuickWaypointScreen extends Screen {
     protected void init() {
         NewWaypointModal modal = new NewWaypointModal(waypoints);
         modal.setCoordsPickerEnabled(false);
-        modal.setOnDone(this::onClose);
         LocalPlayer player = Minecraft.getInstance().player;
         modal.open("", player.getBlockX(), player.getBlockY() + 1, player.getBlockZ());
+        modal.setOnDone(this::onClose);
+        modal.setOnCancel(this::onClose);
         modal.setVisible(true);
         addRenderableWidget(modal);
         // Route keyboard input to the modal from the start, so typing works without a click.

@@ -45,6 +45,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
     private TextBoxComponent nameBox;
 
     private Button doneButton;
+    private Button cancelButton;
 
     private HsbColourPicker colourPicker;
     private int colour = 0xFF0000;
@@ -53,6 +54,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
     private boolean targeting = false;
 
     private Runnable onDone;
+    private Runnable onCancel;
     private boolean coordsPickerEnabled = true;
 
     public NewWaypointModal(Waypoints waypoints) {
@@ -65,12 +67,22 @@ public class NewWaypointModal extends Modal<FlowLayout> {
         this.onDone = onDone;
     }
 
+    /** Called after the modal has hidden itself in response to the cancel button. */
+    public void setOnCancel(Runnable onCancel) {
+        this.onCancel = onCancel;
+    }
+
     /** The target-style picker only makes sense when a map is behind the modal. */
     public void setCoordsPickerEnabled(boolean coordsPickerEnabled) {
         this.coordsPickerEnabled = coordsPickerEnabled;
     }
 
     public void open(String name, int x, int y, int z) {
+        // This instance is shared across several entry points; a stale callback from a previous
+        // open() must not fire for one that never asked for it.
+        this.onDone = null;
+        this.onCancel = null;
+
         // Random hue at full saturation/brightness, so every waypoint starts vivid rather than red.
         this.colour = Mth.hsvToRgb(ThreadLocalRandom.current().nextFloat(), 1.0f, 1.0f) & 0xFFFFFF;
         this.previewColour = this.colour;
@@ -80,6 +92,9 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
         doneButton = Button.builder(CommonComponents.GUI_DONE, button -> {
             this.done();
+        }).build();
+        cancelButton = Button.builder(CommonComponents.GUI_CANCEL, button -> {
+            this.cancel();
         }).build();
         ImageButton coordsButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
             this.visible = false;
@@ -157,7 +172,8 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(24))
-                    .child(doneButton.horizontalSizing(Sizing.fixed(93)).margins(Insets.right(4).withTop(1)))
+                    .child(doneButton.horizontalSizing(Sizing.fixed(45)).margins(Insets.right(3).withTop(1)))
+                    .child(cancelButton.horizontalSizing(Sizing.fixed(45)).margins(Insets.right(4).withTop(1)))
                     .child(colourBox)
                     .child(colourPicker.margins(Insets.top(1).withLeft(2)))
                     .margins(Insets.horizontal(4).withTop(4))
@@ -252,6 +268,13 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             }
         } catch (NumberFormatException ignored) {
 
+        }
+    }
+
+    public void cancel() {
+        setVisible(false);
+        if (this.onCancel != null) {
+            this.onCancel.run();
         }
     }
 

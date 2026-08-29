@@ -49,6 +49,7 @@ public class CivMapConfig {
     private int minimapSize;
     private boolean playerWaypointsEnabled;
     private boolean waypointRenderingEnabled;
+    private int waypointRenderDistance;
     private float minimapZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
@@ -97,6 +98,7 @@ public class CivMapConfig {
         this.minimapSize = Integer.parseInt(properties.getProperty("minimap_size", "100"));
         this.playerWaypointsEnabled = Boolean.parseBoolean(properties.getProperty("player_waypoints_enabled", "true"));
         this.waypointRenderingEnabled = Boolean.parseBoolean(properties.getProperty("waypoint_rendering_enabled", "true"));
+        this.waypointRenderDistance = Integer.parseInt(properties.getProperty("waypoint_render_distance", "2000"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
@@ -160,6 +162,7 @@ public class CivMapConfig {
             properties.setProperty("minimap_size", Integer.toString(minimapSize));
             properties.setProperty("player_waypoints_enabled", Boolean.toString(playerWaypointsEnabled));
             properties.setProperty("waypoint_rendering_enabled", Boolean.toString(waypointRenderingEnabled));
+            properties.setProperty("waypoint_render_distance", Integer.toString(waypointRenderDistance));
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
@@ -430,6 +433,14 @@ public class CivMapConfig {
 
     public void setWaypointRenderingEnabled(boolean waypointRenderingEnabled) {
         this.waypointRenderingEnabled = waypointRenderingEnabled;
+    }
+
+    public int getWaypointRenderDistance() {
+        return waypointRenderDistance;
+    }
+
+    public void setWaypointRenderDistance(int waypointRenderDistance) {
+        this.waypointRenderDistance = waypointRenderDistance;
     }
 
     public float getMinimapZoom() {

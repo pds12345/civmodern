@@ -160,7 +160,8 @@ public class Waypoints {
         }
 
         LocalPlayer player = Minecraft.getInstance().player;
-        List<Waypoint> nearbyWaypoints = getWaypoints(player.getBlockX(), player.getBlockY(), player.getBlockZ(), 2000);
+        int renderDistance = AbstractCivModernMod.getInstance().getConfig().getWaypointRenderDistance();
+        List<Waypoint> nearbyWaypoints = getWaypoints(player.getBlockX(), player.getBlockY(), player.getBlockZ(), renderDistance);
         if (getTarget() != null) {
             nearbyWaypoints.add(getTarget());
         }

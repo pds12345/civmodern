@@ -125,6 +125,24 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }
         addRenderableWidget(managerButton);
         offset += 24;
+        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 100, 5000, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getWaypointRenderDistance();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setWaypointRenderDistance((int) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.map.waypointdistance",
+                    Integer.toString((int) value));
+            }
+        }));
+        offset += 24;
         chevronColourY = offset;
 
         offset += 12;

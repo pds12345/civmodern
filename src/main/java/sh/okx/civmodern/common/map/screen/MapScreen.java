@@ -308,8 +308,8 @@ public class MapScreen extends Screen {
 
         // Node territory sits over the map tiles but under the waypoints and the chevron.
         if (nodeOverlayActive()) {
-            NodeOverlayRenderer.render(guiGraphics, nodeCache, config, this.x, this.y,
-                window.getGuiScaledWidth(), window.getGuiScaledHeight(), scale);
+            NodeOverlayRenderer.render(guiGraphics, nodeCache, config, config.getNodeOverlayMode(), this.x, this.y,
+                window.getGuiScaledWidth(), window.getGuiScaledHeight(), scale, null);
         }
 
         matrices.pushMatrix();

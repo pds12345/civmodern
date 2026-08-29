@@ -55,6 +55,7 @@ public class CivMapConfig {
     private boolean showMinimapCoords;
     private int borderColour;
     private NodeOverlayMode nodeOverlayMode;
+    private NodeOverlayMode minimapNodeOverlayMode;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private boolean nodeOverlayBorders;
@@ -107,6 +108,10 @@ public class CivMapConfig {
             overlayMode = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true")) ? "on" : "off";
         }
         this.nodeOverlayMode = NodeOverlayMode.fromString(overlayMode);
+        // Off unless asked for: the minimap is glanced at in fights, so territory colour joins it
+        // only when the player opts in (the toggle keybind, default Y).
+        this.minimapNodeOverlayMode = NodeOverlayMode.fromString(
+            properties.getProperty("minimap_node_overlay_mode", "off"));
         this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
         // existing config does not silently keep the old translucent value.
@@ -159,6 +164,7 @@ public class CivMapConfig {
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
+            properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
             properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
@@ -470,6 +476,15 @@ public class CivMapConfig {
 
     public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
         this.nodeOverlayMode = nodeOverlayMode;
+    }
+
+    /** How the overlay is drawn on the minimap. Deliberately independent of the map's mode. */
+    public NodeOverlayMode getMinimapNodeOverlayMode() {
+        return minimapNodeOverlayMode;
+    }
+
+    public void setMinimapNodeOverlayMode(NodeOverlayMode minimapNodeOverlayMode) {
+        this.minimapNodeOverlayMode = minimapNodeOverlayMode;
     }
 
     /**

@@ -168,7 +168,7 @@ public class WorldListener {
                             Minecraft.getInstance().execute(() -> {
                                 this.cache = new MapCache(this.file);
                                 this.nodes = new NodeCache(this.file);
-                                this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.config, this.provider);
+                                this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.nodes, this.config, this.provider);
 
                                 for (ChunkPos chunk : this.loadedChunks) {
                                     LevelChunk levelChunk = level.getChunk(chunk.x, chunk.z);
@@ -190,7 +190,7 @@ public class WorldListener {
         converter = null;
         this.cache = new MapCache(this.file);
         this.nodes = new NodeCache(this.file);
-        this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.config, this.provider);
+        this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.nodes, this.config, this.provider);
     }
 
     @Subscribe

@@ -142,12 +142,18 @@ public final class NodeOverlayRenderer {
     /**
      * Paints the visible chunks.
      *
-     * @param originX  world block X at the left edge of the screen
-     * @param originZ  world block Z at the top edge of the screen
+     * @param mode     how the layer is faded; passed in rather than read off the config, because
+     *                 the map screen and the minimap each keep their own mode
+     * @param originX  world block X at the left edge of the viewport
+     * @param originZ  world block Z at the top edge of the viewport
      * @param scale    world blocks per GUI pixel
+     * @param clip     the viewport's on-screen rectangle in GUI coordinates, or {@code null} when
+     *                 the viewport is the whole screen — the minimap passes its square so the
+     *                 layer is scissored to it
      */
-    public static void render(GuiGraphics guiGraphics, NodeCache cache, CivMapConfig config,
-                              double originX, double originZ, int screenWidth, int screenHeight, float scale) {
+    public static void render(GuiGraphics guiGraphics, NodeCache cache, CivMapConfig config, NodeOverlayMode mode,
+                              double originX, double originZ, int screenWidth, int screenHeight, float scale,
+                              ScreenRectangle clip) {
         float chunkPixels = 16f / scale;
         if (chunkPixels < MIN_CHUNK_PIXELS) {
             return;
@@ -155,7 +161,7 @@ public final class NodeOverlayRenderer {
 
         // TRANSLUCENT mode fades every colour the layer draws, on top of the configured fill
         // opacity — fading only the fill would leave opaque seams floating over a ghosted map.
-        float ink = config.getNodeOverlayMode().inkMultiplier();
+        float ink = mode.inkMultiplier();
         if (ink <= 0f) {
             return;
         }
@@ -216,8 +222,8 @@ public final class NodeOverlayRenderer {
         // element per quad, and at grid zoom levels that is thousands of elements a frame.
         NodeOverlayQuadBatch batch = new NodeOverlayQuadBatch(
             new Matrix3x2f(guiGraphics.pose()),
-            guiGraphics.scissorStack.peek(),
-            new ScreenRectangle(0, 0, screenWidth, screenHeight));
+            clip != null ? clip : guiGraphics.scissorStack.peek(),
+            clip != null ? clip : new ScreenRectangle(0, 0, screenWidth, screenHeight));
 
         for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ += step) {
             float top = screenY(chunkZ, originZ, scale);

@@ -167,7 +167,17 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
         this.layout.inflateAndMount();
         colourBox.moveCursorToStart(false);
-        this.layout.rootComponent.focusHandler().focus(nameBox, UIComponent.FocusSource.KEYBOARD_CYCLE);
+        focusNameBox();
+    }
+
+    /**
+     * owo-internal focus only; the hosting screen must also make this modal its focused
+     * child (setFocused) or keystrokes never reach it.
+     */
+    public void focusNameBox() {
+        if (nameBox != null) {
+            this.layout.rootComponent.focusHandler().focus(nameBox, UIComponent.FocusSource.KEYBOARD_CYCLE);
+        }
     }
 
     @Override

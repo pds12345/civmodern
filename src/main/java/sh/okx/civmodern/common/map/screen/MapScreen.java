@@ -145,6 +145,14 @@ public class MapScreen extends Screen {
             if (newWaypointModal.isVisible()) {
                 editWaypointModal.setVisible(false);
                 editWaypointModal.setWaypoint(null);
+                // Deferred: once this click handler returns, the screen focuses the clicked
+                // button, which would overwrite a setFocused done here directly.
+                Minecraft.getInstance().execute(() -> {
+                    if (newWaypointModal.isVisible()) {
+                        setFocused(newWaypointModal);
+                        newWaypointModal.focusNameBox();
+                    }
+                });
             }
         });
         openWaypointButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.newwaypoint.tooltip")));
@@ -159,6 +167,9 @@ public class MapScreen extends Screen {
 
         addRenderableWidget(newWaypointModal);
         addRenderableWidget(editWaypointModal);
+        if (newWaypointModal.isVisible()) {
+            setFocused(newWaypointModal);
+        }
 
         Identifier toggleWaypointImage;
         if (config.isWaypointRenderingEnabled()) {

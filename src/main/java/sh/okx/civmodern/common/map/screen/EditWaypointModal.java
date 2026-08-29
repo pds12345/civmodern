@@ -4,6 +4,7 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.GridLayout;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
@@ -49,7 +50,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
     private boolean coordsPickerEnabled = true;
 
     public EditWaypointModal(Waypoints waypoints) {
-        super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 220, 116, UIContainers::verticalFlow));
+        super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 240, 116, UIContainers::verticalFlow));
         super.layout.rootComponent.allowOverflow(true);
         this.waypoints = waypoints;
     }
@@ -115,7 +116,10 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         );
         this.colour = this.previewColour = waypoint.colour();
         colourPicker.setRVisible(false);
-        ImageButton coordsButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
+        ImageButton highlightButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
+            this.waypoints.setTarget(new Waypoint("", this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), "target", 0xFF0000));
+        });
+        ImageButton moveButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/move.png"), imbg -> {
             this.visible = false;
             this.targeting = true;
         });
@@ -145,23 +149,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(40))
-                        .child(UIContainers.grid(Sizing.content(), Sizing.content(), 2, 3)
-                            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
-                            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
-                            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
-                            .child(xBox.margins(Insets.right(3)), 1, 0)
-                            .child(yBox.margins(Insets.right(3)), 1, 1)
-                            .child(zBox.margins(Insets.right(3)), 1, 2)
-                            .positioning(Positioning.relative(0, 0))
-                        )
-                        .child(
-                            buildActionRow(coordsButton, copyButton, deleteButton)
-                                .margins(Insets.bottom(6))
-                                .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
-                                .positioning(Positioning.relative(100, 100))
-                        )
-                    )
+                    .child(buildCoordsRow(highlightButton, moveButton, copyButton, deleteButton))
                     .margins(Insets.horizontal(4).withTop(4))
             )
             .child(
@@ -179,14 +167,25 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         colourBox.moveCursorToStart(false);
     }
 
-    private FlowLayout buildActionRow(ImageButton coordsButton, ImageButton copyButton, ImageButton deleteButton) {
-        FlowLayout row = UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40));
+    /**
+     * The X/Y/Z boxes and the action buttons share one grid row so the same right-margin gives
+     * uniform spacing across all of them, coordinate boxes included.
+     */
+    private GridLayout buildCoordsRow(ImageButton highlightButton, ImageButton moveButton, ImageButton copyButton, ImageButton deleteButton) {
+        GridLayout grid = UIContainers.grid(Sizing.content(), Sizing.content(), 2, 7)
+            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
+            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
+            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
+            .child(xBox.margins(Insets.right(3)), 1, 0)
+            .child(yBox.margins(Insets.right(3)), 1, 1)
+            .child(zBox.margins(Insets.right(3)), 1, 2)
+            .child(highlightButton.margins(Insets.right(3)), 1, 3);
         if (coordsPickerEnabled) {
-            row.child(coordsButton.margins(Insets.right(4)));
+            grid.child(moveButton.margins(Insets.right(3)), 1, 4);
         }
-        row.child(copyButton.margins(Insets.right(4)))
-            .child(deleteButton);
-        return row;
+        grid.child(copyButton.margins(Insets.right(3)), 1, 5)
+            .child(deleteButton, 1, 6);
+        return grid;
     }
 
     public String getName() {

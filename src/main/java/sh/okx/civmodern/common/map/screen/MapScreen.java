@@ -81,6 +81,7 @@ public class MapScreen extends Screen {
     private NodeApiClient.State nodeTooltipState;
 
     private PositionContextMenu positionContextMenu;
+    private HighlightContextMenu highlightContextMenu;
 
     private double x;
     private double y;
@@ -135,26 +136,26 @@ public class MapScreen extends Screen {
         }
         editWaypointModal = new EditWaypointModal(waypoints);
 
-        positionContextMenu = new PositionContextMenu(this.waypoints, newWaypointModal);
+        positionContextMenu = new PositionContextMenu(this.waypoints, newWaypointModal, this::focusNewWaypointModal);
         addRenderableWidget(positionContextMenu);
+
+        highlightContextMenu = new HighlightContextMenu(this.waypoints, newWaypointModal, this::focusNewWaypointModal);
+        addRenderableWidget(highlightContextMenu);
 
         openWaypointButton = new ImageButton(this.width / 2 - 22, 10, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/new.png"), imbg -> {
             if (editWaypointModal.isTargeting()) {
                 return;
             }
-            newWaypointModal.setVisible(!newWaypointModal.isVisible());
             if (newWaypointModal.isVisible()) {
-                editWaypointModal.setVisible(false);
-                editWaypointModal.setWaypoint(null);
-                // Deferred: once this click handler returns, the screen focuses the clicked
-                // button, which would overwrite a setFocused done here directly.
-                Minecraft.getInstance().execute(() -> {
-                    if (newWaypointModal.isVisible()) {
-                        setFocused(newWaypointModal);
-                        newWaypointModal.focusNameBox();
-                    }
-                });
+                newWaypointModal.setVisible(false);
+                return;
             }
+            LocalPlayer player = Minecraft.getInstance().player;
+            newWaypointModal.open("", player.getBlockX(), player.getBlockY() + 1, player.getBlockZ());
+            newWaypointModal.setVisible(true);
+            editWaypointModal.setVisible(false);
+            editWaypointModal.setWaypoint(null);
+            focusNewWaypointModal();
         });
         openWaypointButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.newwaypoint.tooltip")));
         addRenderableWidget(openWaypointButton);
@@ -230,6 +231,19 @@ public class MapScreen extends Screen {
         });
         settingsButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.settings.tooltip")));
         addRenderableWidget(settingsButton);
+    }
+
+    /**
+     * Deferred: the click that opens the modal also lands on this screen, which then focuses
+     * the clicked widget, overwriting a setFocused done synchronously within the same click.
+     */
+    private void focusNewWaypointModal() {
+        Minecraft.getInstance().execute(() -> {
+            if (newWaypointModal.isVisible()) {
+                setFocused(newWaypointModal);
+                newWaypointModal.focusNameBox();
+            }
+        });
     }
 
     /** The icon carries the state: full for ON, ghosted for TRANSLUCENT, struck out for OFF. */
@@ -552,7 +566,7 @@ public class MapScreen extends Screen {
         // dropped unless the widget is focused), so a hovered toolbar button has claimed it by
         // now and the node tooltip only fills in when nothing else did.
         if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
-            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible()) {
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
             List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, config, mouseBlockX >> 4, mouseBlockY >> 4);
             if (!lines.isEmpty()) {
                 guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
@@ -601,6 +615,9 @@ public class MapScreen extends Screen {
             editWaypointModal.setVisible(false);
             editWaypointModal.setWaypoint(null);
             return true;
+        } else if (highlightContextMenu.isVisible() && button == 1) {
+            highlightContextMenu.setVisible(false);
+            return true;
         }
 
         if (boating && button == 1) {
@@ -617,7 +634,13 @@ public class MapScreen extends Screen {
         }
 
         if (hoveredWaypoint != null && button == 0) {
-            if (editWaypointModal.getWaypoint() != hoveredWaypoint) {
+            if (hoveredWaypoint.equals(waypoints.getTarget())) {
+                editWaypointModal.setVisible(false);
+                editWaypointModal.setWaypoint(null);
+                newWaypointModal.setVisible(false);
+                highlightContextMenu.open(hoveredWaypoint, (int) mouseX, (int) mouseY);
+                highlightContextMenu.setVisible(true);
+            } else if (editWaypointModal.getWaypoint() != hoveredWaypoint) {
                 editWaypointModal.setWaypoint(hoveredWaypoint);
                 editWaypointModal.setVisible(true);
                 newWaypointModal.setVisible(false);
@@ -641,13 +664,16 @@ public class MapScreen extends Screen {
         float scale = (float) window.getGuiScale() * zoom;
 
         if (!boating) {
-            if (hoveredWaypoint == null && button == 1 && !positionContextMenu.isVisible()) {
+            if (hoveredWaypoint == null && button == 1 && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
                 Short yLevel = mapCache.getYLevel(this.mouseBlockX, this.mouseBlockY);
                 positionContextMenu.open(this.mouseBlockX, yLevel, this.mouseBlockY, (int) ((this.mouseBlockX - this.x) / scale), (int) ((this.mouseBlockY - this.y + 1) / scale + 1));
                 positionContextMenu.setVisible(true);
                 return true;
             } else if (positionContextMenu.isVisible() && !positionContextMenu.isMouseOver(x, y)) {
                 positionContextMenu.setVisible(false);
+                return true;
+            } else if (highlightContextMenu.isVisible() && !highlightContextMenu.isMouseOver(x, y)) {
+                highlightContextMenu.setVisible(false);
                 return true;
             }
         }
@@ -666,9 +692,6 @@ public class MapScreen extends Screen {
         double mouseWorldY = (mouseY * scale + y);
         hoveredWaypoint = null;
         for (Waypoint waypoint : waypointList) {
-            if (waypoint.equals(waypoints.getTarget())) {
-                continue;
-            }
             if (closest == null) {
                 closest = waypoint;
             } else if (Math.abs(waypoint.x() - mouseWorldX) + Math.abs(waypoint.z() - mouseWorldY) < Math.abs(closest.x() - mouseWorldX) + Math.abs(closest.z() - mouseWorldY)) {
@@ -741,6 +764,11 @@ public class MapScreen extends Screen {
 
         if (positionContextMenu.isVisible() && !positionContextMenu.isMouseOver(x, y)) {
             positionContextMenu.setVisible(false);
+            return true;
+        }
+
+        if (highlightContextMenu.isVisible() && !highlightContextMenu.isMouseOver(x, y)) {
+            highlightContextMenu.setVisible(false);
             return true;
         }
 

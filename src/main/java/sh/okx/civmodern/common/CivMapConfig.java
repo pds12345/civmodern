@@ -58,6 +58,7 @@ public class CivMapConfig {
     private NodeOverlayMode minimapNodeOverlayMode;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
+    private float nodeTranslucentOpacity;
     private boolean nodeOverlayBorders;
     private boolean nodeChunkGrid;
     private boolean nodeShowUnclaimed;
@@ -116,6 +117,7 @@ public class CivMapConfig {
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
         // existing config does not silently keep the old translucent value.
         this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
+        this.nodeTranslucentOpacity = Float.parseFloat(properties.getProperty("node_translucent_opacity", "0.4"));
         this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
         this.nodeChunkGrid = Boolean.parseBoolean(properties.getProperty("node_chunk_grid", "true"));
         this.nodeShowUnclaimed = Boolean.parseBoolean(properties.getProperty("node_show_unclaimed", "true"));
@@ -167,6 +169,7 @@ public class CivMapConfig {
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
             properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
+            properties.setProperty("node_translucent_opacity", Float.toString(nodeTranslucentOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
             properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
             properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
@@ -499,12 +502,22 @@ public class CivMapConfig {
         this.nodeQueryEnabled = nodeQueryEnabled;
     }
 
+    /** Fill opacity in the solid overlay mode. Seams and markers stay at full ink there. */
     public float getNodeOverlayOpacity() {
         return nodeOverlayOpacity;
     }
 
     public void setNodeOverlayOpacity(float nodeOverlayOpacity) {
         this.nodeOverlayOpacity = nodeOverlayOpacity;
+    }
+
+    /** Opacity of the whole layer — fills and lines alike — in the translucent overlay mode. */
+    public float getNodeTranslucentOpacity() {
+        return nodeTranslucentOpacity;
+    }
+
+    public void setNodeTranslucentOpacity(float nodeTranslucentOpacity) {
+        this.nodeTranslucentOpacity = nodeTranslucentOpacity;
     }
 
     public boolean isNodeOverlayBorders() {

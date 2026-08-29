@@ -159,13 +159,24 @@ public final class NodeOverlayRenderer {
             return;
         }
 
-        // TRANSLUCENT mode fades every colour the layer draws, on top of the configured fill
-        // opacity — fading only the fill would leave opaque seams floating over a ghosted map.
-        float ink = mode.inkMultiplier();
+        // Each mode has its own opacity slider. Solid fades only the fill and keeps the seams at
+        // full ink; translucent fades every colour the layer draws as one — fading only the fill
+        // would leave opaque seams floating over a ghosted map.
+        float ink;
+        float fillOpacity;
+        if (mode == NodeOverlayMode.TRANSLUCENT) {
+            ink = Math.min(1f, Math.max(0f, config.getNodeTranslucentOpacity()));
+            fillOpacity = ink;
+        } else if (mode == NodeOverlayMode.ON) {
+            ink = 1f;
+            fillOpacity = Math.min(1f, Math.max(0f, config.getNodeOverlayOpacity()));
+        } else {
+            return;
+        }
         if (ink <= 0f) {
             return;
         }
-        int alpha = Math.round(Math.min(1f, Math.max(0f, config.getNodeOverlayOpacity())) * ink * 255f) << 24;
+        int alpha = Math.round(fillOpacity * 255f) << 24;
         if (alpha == 0) {
             return;
         }

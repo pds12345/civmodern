@@ -77,7 +77,8 @@ public class NodeConfigScreen extends AbstractConfigScreen {
 
         offset += 24;
 
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0.1, 1.0, new DoubleValue() {
+        DoubleOptionUpdateableSliderWidget solidOpacity =
+            new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0.1, 1.0, new DoubleValue() {
             @Override
             public double get() {
                 return config.getNodeOverlayOpacity();
@@ -95,9 +96,34 @@ public class NodeConfigScreen extends AbstractConfigScreen {
                     : Component.literal(Math.round(value * 100) + "%");
                 return Component.translatable("civmodern.screen.nodes.opacity", label);
             }
-        }));
+        });
+        solidOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.nodes.opacity.tooltip")));
+        addRenderableWidget(solidOpacity);
 
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20,
+        DoubleOptionUpdateableSliderWidget translucentOpacity =
+            new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 0.05, 1.0, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getNodeTranslucentOpacity();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setNodeTranslucentOpacity((float) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.nodes.translucentopacity",
+                    Math.round(value * 100) + "%");
+            }
+        });
+        translucentOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.nodes.translucentopacity.tooltip")));
+        addRenderableWidget(translucentOpacity);
+
+        offset += 24;
+
+        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20,
             NodeProtocol.MIN_QUERY_SIZE, NodeProtocol.MAX_QUERY_SIZE, new DoubleValue() {
             @Override
             public double get() {

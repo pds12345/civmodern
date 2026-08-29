@@ -2,27 +2,13 @@ package sh.okx.civmodern.common.map.nodes;
 
 /**
  * How the node territory layer is drawn over the map: at full strength, faded so the map
- * underneath stays readable, or not at all. The map button cycles these in declaration order.
+ * underneath stays readable, or not at all. Toggles cycle these in declaration order. Each
+ * visible mode's opacity is a config slider of its own — the mode carries no strength itself.
  */
 public enum NodeOverlayMode {
-    ON(1f),
-    TRANSLUCENT(0.4f),
-    OFF(0f);
-
-    private final float inkMultiplier;
-
-    NodeOverlayMode(float inkMultiplier) {
-        this.inkMultiplier = inkMultiplier;
-    }
-
-    /**
-     * Scales every colour the overlay draws — fills, seams, grid, and bastion markers alike —
-     * on top of the user's configured fill opacity, so TRANSLUCENT fades the whole layer as one
-     * rather than leaving opaque seams over a see-through fill.
-     */
-    public float inkMultiplier() {
-        return inkMultiplier;
-    }
+    ON,
+    TRANSLUCENT,
+    OFF;
 
     public boolean isVisible() {
         return this != OFF;

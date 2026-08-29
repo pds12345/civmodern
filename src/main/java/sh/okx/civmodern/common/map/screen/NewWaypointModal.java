@@ -48,10 +48,22 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
     private boolean targeting = false;
 
+    private Runnable onDone;
+    private boolean coordsPickerEnabled = true;
+
     public NewWaypointModal(Waypoints waypoints) {
         super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104, 48, 196, 116, UIContainers::verticalFlow));
         super.layout.rootComponent.allowOverflow(true);
         this.waypoints = waypoints;
+    }
+
+    public void setOnDone(Runnable onDone) {
+        this.onDone = onDone;
+    }
+
+    /** The target-style picker only makes sense when a map is behind the modal. */
+    public void setCoordsPickerEnabled(boolean coordsPickerEnabled) {
+        this.coordsPickerEnabled = coordsPickerEnabled;
     }
 
     public void open(String name, int x, int y, int z) {
@@ -100,6 +112,27 @@ public class NewWaypointModal extends Modal<FlowLayout> {
         colourPicker.setRVisible(false);
 
         nameBox = UIComponents.textBox(Sizing.expand(), name);
+
+        FlowLayout coordsRow = UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(40))
+            .child(UIContainers.grid(Sizing.content(), Sizing.content(), 2, 3)
+                .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
+                .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
+                .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
+                .child(xBox.margins(Insets.right(3)), 1, 0)
+                .child(yBox.margins(Insets.right(3)), 1, 1)
+                .child(zBox.margins(Insets.right(3)), 1, 2)
+                .positioning(Positioning.relative(0, 0))
+            );
+        if (coordsPickerEnabled) {
+            coordsRow.child(
+                UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40))
+                    .child(coordsButton.margins(Insets.right(0)))
+                    .margins(Insets.bottom(6))
+                    .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
+                    .positioning(Positioning.relative(100, 100))
+            );
+        }
+
         this.layout.rootComponent.clearChildren();
         this.layout.rootComponent
             .child(
@@ -111,24 +144,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(40))
-                        .child(UIContainers.grid(Sizing.content(), Sizing.content(), 2, 3)
-                            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
-                            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
-                            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
-                            .child(xBox.margins(Insets.right(3)), 1, 0)
-                            .child(yBox.margins(Insets.right(3)), 1, 1)
-                            .child(zBox.margins(Insets.right(3)), 1, 2)
-                            .positioning(Positioning.relative(0, 0))
-                        )
-                        .child(
-                            UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40))
-                                .child(coordsButton.margins(Insets.right(0)))
-                                .margins(Insets.bottom(6))
-                                .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
-                                .positioning(Positioning.relative(100, 100))
-                        )
-                    )
+                    .child(coordsRow)
                     .margins(Insets.horizontal(4).withTop(4))
             )
             .child(
@@ -212,6 +228,9 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             int z = Integer.parseInt(this.zBox.getValue());
             waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, "waypoint", this.colour));
             setVisible(false);
+            if (this.onDone != null) {
+                this.onDone.run();
+            }
         } catch (NumberFormatException ignored) {
 
         }

@@ -39,6 +39,7 @@ import sh.okx.civmodern.common.map.nodes.NodeApiClient;
 import sh.okx.civmodern.common.map.nodes.NodeInfo;
 import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 import sh.okx.civmodern.common.map.screen.MapScreen;
+import sh.okx.civmodern.common.map.screen.QuickWaypointScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.parser.ParsedWaypoint;
 import sh.okx.civmodern.common.radar.Radar;
@@ -60,6 +61,7 @@ public abstract class AbstractCivModernMod {
 
     private final KeyMapping mapBinding;
     private final KeyMapping minimapZoomBinding;
+    private final KeyMapping newWaypointBinding;
 
     private CivMapConfig config;
     private ColourProvider colourProvider;
@@ -114,6 +116,12 @@ public abstract class AbstractCivModernMod {
             GLFW.GLFW_KEY_KP_DIVIDE,
             CIVMODERN_CATEGORY
         );
+        this.newWaypointBinding = new KeyMapping(
+            "key.civmodern.newwaypoint",
+            Type.KEYSYM,
+            GLFW.GLFW_KEY_B,
+            CIVMODERN_CATEGORY
+        );
 
 
         if (INSTANCE == null) {
@@ -134,6 +142,7 @@ public abstract class AbstractCivModernMod {
         registerKeyBinding(this.iceRoadBinding);
         registerKeyBinding(this.mapBinding);
         registerKeyBinding(this.minimapZoomBinding);
+        registerKeyBinding(this.newWaypointBinding);
     }
 
     public final void enable() {
@@ -248,6 +257,12 @@ public abstract class AbstractCivModernMod {
         }
         while (minimapZoomBinding.consumeClick()) {
             worlds.cycleMinimapZoom();
+        }
+        while (newWaypointBinding.consumeClick()) {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player != null && worlds.getWaypoints() != null) {
+                Minecraft.getInstance().setScreen(new QuickWaypointScreen(worlds.getWaypoints()));
+            }
         }
     }
 

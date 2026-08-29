@@ -216,6 +216,13 @@ public class MapScreen extends Screen {
         });
         updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
+
+        ImageButton managerButton = new ImageButton(this.width - 102, 10, 20, 20,
+            Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
+            Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
+        });
+        managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.waypointmanager.tooltip")));
+        addRenderableWidget(managerButton);
     }
 
     /** The icon carries the state: full for ON, ghosted for TRANSLUCENT, struck out for OFF. */

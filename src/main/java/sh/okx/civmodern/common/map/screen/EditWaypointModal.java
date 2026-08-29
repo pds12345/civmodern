@@ -46,11 +46,17 @@ public class EditWaypointModal extends Modal<FlowLayout> {
 
     private Waypoint waypoint;
     private boolean targeting = false;
+    private boolean coordsPickerEnabled = true;
 
     public EditWaypointModal(Waypoints waypoints) {
         super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 220, 116, UIContainers::verticalFlow));
         super.layout.rootComponent.allowOverflow(true);
         this.waypoints = waypoints;
+    }
+
+    /** The target-style picker only makes sense when a map is behind the modal. */
+    public void setCoordsPickerEnabled(boolean coordsPickerEnabled) {
+        this.coordsPickerEnabled = coordsPickerEnabled;
     }
 
     public void setWaypoint(Waypoint waypoint) {
@@ -150,10 +156,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
                             .positioning(Positioning.relative(0, 0))
                         )
                         .child(
-                            UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40))
-                                .child(coordsButton.margins(Insets.right(4)))
-                                .child(copyButton.margins(Insets.right(4)))
-                                .child(deleteButton)
+                            buildActionRow(coordsButton, copyButton, deleteButton)
                                 .margins(Insets.bottom(6))
                                 .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
                                 .positioning(Positioning.relative(100, 100))
@@ -174,6 +177,16 @@ public class EditWaypointModal extends Modal<FlowLayout> {
 
         this.layout.inflateAndMount();
         colourBox.moveCursorToStart(false);
+    }
+
+    private FlowLayout buildActionRow(ImageButton coordsButton, ImageButton copyButton, ImageButton deleteButton) {
+        FlowLayout row = UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40));
+        if (coordsPickerEnabled) {
+            row.child(coordsButton.margins(Insets.right(4)));
+        }
+        row.child(copyButton.margins(Insets.right(4)))
+            .child(deleteButton);
+        return row;
     }
 
     public String getName() {

@@ -69,6 +69,9 @@ processResources {
         "mod_name"             : project.mod_name,
         "mod_version"          : project.mod_version,
         "mod_description"      : project.mod_description,
+        // Consumed by the %FABRIC_AUTHORS_ARRAY% filter below; declared here so an authors
+        // change is seen by the up-to-date check and actually reruns this task.
+        "mod_authors"          : project.mod_authors,
         "mod_home_url"         : project.mod_home_url,
         "mod_source_url"       : project.mod_source_url,
         "copyright_licence"    : project.copyright_licence,

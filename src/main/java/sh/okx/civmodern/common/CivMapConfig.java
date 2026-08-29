@@ -7,6 +7,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 public class CivMapConfig {
@@ -53,7 +54,7 @@ public class CivMapConfig {
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
     private int borderColour;
-    private boolean nodeOverlayEnabled;
+    private NodeOverlayMode nodeOverlayMode;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private boolean nodeOverlayBorders;
@@ -99,7 +100,13 @@ public class CivMapConfig {
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
-        this.nodeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true"));
+        // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
+        // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
+        String overlayMode = properties.getProperty("node_overlay_mode");
+        if (overlayMode == null) {
+            overlayMode = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true")) ? "on" : "off";
+        }
+        this.nodeOverlayMode = NodeOverlayMode.fromString(overlayMode);
         this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
         // existing config does not silently keep the old translucent value.
@@ -151,7 +158,7 @@ public class CivMapConfig {
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
-            properties.setProperty("node_overlay_enabled", Boolean.toString(nodeOverlayEnabled));
+            properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
@@ -456,13 +463,13 @@ public class CivMapConfig {
         return borderColour;
     }
 
-    /** Whether the overlay is drawn on the map. Independent of whether the server is queried. */
-    public boolean isNodeOverlayEnabled() {
-        return nodeOverlayEnabled;
+    /** How the overlay is drawn on the map, if at all. Independent of whether the server is queried. */
+    public NodeOverlayMode getNodeOverlayMode() {
+        return nodeOverlayMode;
     }
 
-    public void setNodeOverlayEnabled(boolean nodeOverlayEnabled) {
-        this.nodeOverlayEnabled = nodeOverlayEnabled;
+    public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
+        this.nodeOverlayMode = nodeOverlayMode;
     }
 
     /**

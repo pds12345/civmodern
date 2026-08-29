@@ -27,7 +27,10 @@ import java.util.List;
  */
 public final class NodeOverlayRenderer {
 
-    /** Always fully opaque, whatever the fill opacity: the seams are what define the territory. */
+    /**
+     * Fully opaque whatever the fill opacity, since the seams are what define the territory.
+     * Only {@link NodeOverlayMode#TRANSLUCENT} fades it, and that fades the layer as a whole.
+     */
     private static final int BORDER_COLOUR = 0xFF080B0E;
 
     /**
@@ -141,7 +144,13 @@ public final class NodeOverlayRenderer {
             return;
         }
 
-        int alpha = Math.round(Math.min(1f, Math.max(0f, config.getNodeOverlayOpacity())) * 255f) << 24;
+        // TRANSLUCENT mode fades every colour the layer draws, on top of the configured fill
+        // opacity — fading only the fill would leave opaque seams floating over a ghosted map.
+        float ink = config.getNodeOverlayMode().inkMultiplier();
+        if (ink <= 0f) {
+            return;
+        }
+        int alpha = Math.round(Math.min(1f, Math.max(0f, config.getNodeOverlayOpacity())) * ink * 255f) << 24;
         if (alpha == 0) {
             return;
         }
@@ -215,7 +224,8 @@ public final class NodeOverlayRenderer {
                 // the step is 1, so these still walk real neighbouring chunks.
                 if (borders || grid) {
                     drawEdges(guiGraphics, ids, northIds, minChunkX, width, top, bottom, originX, scale,
-                        borders, borderWidth, grid, dash, dashGap);
+                        borders, borderWidth, grid, dash, dashGap,
+                        fade(BORDER_COLOUR, ink), fade(CHUNK_GRID_COLOUR, ink));
                 }
             }
 
@@ -224,7 +234,7 @@ public final class NodeOverlayRenderer {
 
         if (chunkPixels >= MIN_BASTION_CHUNK_PIXELS) {
             drawBastions(guiGraphics, palette, minChunkX, maxChunkX, minChunkZ, maxChunkZ,
-                originX, originZ, scale, chunkPixels);
+                originX, originZ, scale, chunkPixels, ink);
         }
     }
 
@@ -238,7 +248,10 @@ public final class NodeOverlayRenderer {
      */
     private static void drawBastions(GuiGraphics guiGraphics, Int2ObjectMap<NodeInfo> palette,
                                      int minChunkX, int maxChunkX, int minChunkZ, int maxChunkZ,
-                                     double originX, double originZ, float scale, float chunkPixels) {
+                                     double originX, double originZ, float scale, float chunkPixels,
+                                     float ink) {
+        int markerColour = fade(BASTION_MARKER_COLOUR, ink);
+        int shadowColour = fade(BASTION_MARKER_SHADOW, ink);
         // Thick enough to read against the fill, but never more than a quarter of the chunk.
         int thickness = Math.max(1, Math.min(Math.round(chunkPixels / 10f), Math.round(chunkPixels / 4f)));
         int inset = Math.max(1, Math.round(chunkPixels * 0.18f));
@@ -262,8 +275,8 @@ public final class NodeOverlayRenderer {
             }
 
             // A dark square one pixel out, so the white stays legible on every fill colour.
-            hollowSquare(guiGraphics, left - 1, top - 1, right + 1, bottom + 1, thickness, BASTION_MARKER_SHADOW);
-            hollowSquare(guiGraphics, left, top, right, bottom, thickness, BASTION_MARKER_COLOUR);
+            hollowSquare(guiGraphics, left - 1, top - 1, right + 1, bottom + 1, thickness, shadowColour);
+            hollowSquare(guiGraphics, left, top, right, bottom, thickness, markerColour);
         }
     }
 
@@ -382,7 +395,8 @@ public final class NodeOverlayRenderer {
     private static void drawEdges(GuiGraphics guiGraphics, long[] ids, long[] northIds,
                                   int minChunkX, int width, int top, int bottom,
                                   double originX, float scale,
-                                  boolean seams, int borderWidth, boolean grid, int dash, int gap) {
+                                  boolean seams, int borderWidth, boolean grid, int dash, int gap,
+                                  int borderColour, int gridColour) {
         for (int i = 0; i < width; i++) {
             long id = ids[i];
             long west = i == 0 ? NO_ID : ids[i - 1];
@@ -393,15 +407,15 @@ public final class NodeOverlayRenderer {
 
             // Differing implies at least one side is a real node, so no extra check is needed.
             if (seams && id != west) {
-                guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, BORDER_COLOUR);
+                guiGraphics.fill(left, top, Math.min(left + borderWidth, right), bottom, borderColour);
             } else if (grid && id != NO_ID) {
-                dashedVertical(guiGraphics, left, top, bottom, dash, gap);
+                dashedVertical(guiGraphics, left, top, bottom, dash, gap, gridColour);
             }
 
             if (seams && id != north) {
-                guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), BORDER_COLOUR);
+                guiGraphics.fill(left, top, right, Math.min(top + borderWidth, bottom), borderColour);
             } else if (grid && id != NO_ID) {
-                dashedHorizontal(guiGraphics, left, right, top, dash, gap);
+                dashedHorizontal(guiGraphics, left, right, top, dash, gap, gridColour);
             }
         }
     }
@@ -413,7 +427,7 @@ public final class NodeOverlayRenderer {
      * short of both corners and the grid does not close up into something that could pass for a
      * solid outline around every chunk.
      */
-    private static void dashedVertical(GuiGraphics guiGraphics, int x, int top, int bottom, int dash, int gap) {
+    private static void dashedVertical(GuiGraphics guiGraphics, int x, int top, int bottom, int dash, int gap, int colour) {
         int length = bottom - top;
         int count = (length + gap) / (dash + gap);
         if (count < 1) {
@@ -421,12 +435,12 @@ public final class NodeOverlayRenderer {
         }
         int y = top + (length - (count * dash + (count - 1) * gap)) / 2;
         for (int i = 0; i < count; i++, y += dash + gap) {
-            guiGraphics.fill(x, y, x + 1, y + dash, CHUNK_GRID_COLOUR);
+            guiGraphics.fill(x, y, x + 1, y + dash, colour);
         }
     }
 
     /** As {@link #dashedVertical}, along a chunk's north edge. */
-    private static void dashedHorizontal(GuiGraphics guiGraphics, int left, int right, int y, int dash, int gap) {
+    private static void dashedHorizontal(GuiGraphics guiGraphics, int left, int right, int y, int dash, int gap, int colour) {
         int length = right - left;
         int count = (length + gap) / (dash + gap);
         if (count < 1) {
@@ -434,7 +448,7 @@ public final class NodeOverlayRenderer {
         }
         int x = left + (length - (count * dash + (count - 1) * gap)) / 2;
         for (int i = 0; i < count; i++, x += dash + gap) {
-            guiGraphics.fill(x, y, x + dash, y + 1, CHUNK_GRID_COLOUR);
+            guiGraphics.fill(x, y, x + dash, y + 1, colour);
         }
     }
 
@@ -476,6 +490,12 @@ public final class NodeOverlayRenderer {
         // promise about the count, and wrapping only ever costs two neighbours the same shade
         // where clamping would flatten every index past the end into one.
         return COLOUR_UNCLAIMED[index % COLOUR_UNCLAIMED.length];
+    }
+
+    /** Scales an ARGB colour's alpha channel, leaving the RGB untouched. */
+    private static int fade(int argb, float multiplier) {
+        int alpha = Math.round((argb >>> 24) * multiplier);
+        return (alpha << 24) | (argb & 0xFFFFFF);
     }
 
     private static int screenX(int chunkX, double originX, float scale) {

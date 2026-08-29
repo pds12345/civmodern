@@ -7,6 +7,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 
 public class ImageButton extends AbstractWidget {
 
@@ -26,7 +27,9 @@ public class ImageButton extends AbstractWidget {
     @Override
     public void renderWidget(GuiGraphics guiGraphics, int i, int j, float f) {
         int k = this.isHoveredOrFocused() ? 1 : 0;
-        guiGraphics.blit(RenderPipelines.GUI_TEXTURED,  image, this.getX(), this.getY(), 0, k * 20, this.width, this.height, 20, 40, -1);
+        // Tint by the widget's inherited alpha (setAlpha), so a button can render its icon faded.
+        int tint = Math.round(Mth.clamp(this.alpha, 0f, 1f) * 255f) << 24 | 0xFFFFFF;
+        guiGraphics.blit(RenderPipelines.GUI_TEXTURED,  image, this.getX(), this.getY(), 0, k * 20, this.width, this.height, 20, 40, tint);
     }
 
     @Override

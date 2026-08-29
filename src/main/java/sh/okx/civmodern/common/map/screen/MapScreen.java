@@ -33,6 +33,7 @@ import sh.okx.civmodern.common.map.RegionAtlasTexture;
 import sh.okx.civmodern.common.map.RegionKey;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
@@ -209,18 +210,24 @@ public class MapScreen extends Screen {
         addRenderableWidget(togglePlayers);
 
         toggleNodes = new ImageButton(this.width - 78, 10, 20, 20, nodeOverlayImage(), imbg -> {
-            config.setNodeOverlayEnabled(!config.isNodeOverlayEnabled());
+            config.setNodeOverlayMode(config.getNodeOverlayMode().next());
             changedConfig = true;
-            imbg.setImage(nodeOverlayImage());
-            imbg.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+            updateNodeOverlayButton(imbg);
         });
-        toggleNodes.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+        updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
+    }
+
+    /** The icon carries the state: full for ON, ghosted for TRANSLUCENT, struck out for OFF. */
+    private void updateNodeOverlayButton(ImageButton button) {
+        button.setImage(nodeOverlayImage());
+        button.setAlpha(config.getNodeOverlayMode() == NodeOverlayMode.TRANSLUCENT ? 0.5f : 1f);
+        button.setTooltip(Tooltip.create(nodeOverlayTooltip()));
     }
 
     private Identifier nodeOverlayImage() {
         return Identifier.fromNamespaceAndPath("civmodern",
-            config.isNodeOverlayEnabled() ? "gui/nodes.png" : "gui/nodesoff.png");
+            config.getNodeOverlayMode().isVisible() ? "gui/nodes.png" : "gui/nodesoff.png");
     }
 
     /**
@@ -244,7 +251,7 @@ public class MapScreen extends Screen {
      * outright, so a server that does not serve node data draws nothing at all.
      */
     private boolean nodeOverlayActive() {
-        return config.isNodeOverlayEnabled() && nodeCache != null && nodeApi != null && nodeApi.isAvailable();
+        return config.getNodeOverlayMode().isVisible() && nodeCache != null && nodeApi != null && nodeApi.isAvailable();
     }
 
     public void setNewWaypoint(Waypoint waypoint) {

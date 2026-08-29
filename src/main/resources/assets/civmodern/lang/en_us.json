@@ -61,7 +61,7 @@
     "civmodern.map.newwaypoint.tooltip": "Create new waypoint",
     "civmodern.map.highlight.tooltip": "Set highlighted waypoint",
     "civmodern.map.copy": "Copied %s to clipboard",
-    "civmodern.map.nodes.tooltip": "Show node territory over the map\nHides the layer only; node data keeps updating",
+    "civmodern.map.nodes.tooltip": "Show node territory over the map\nClick to cycle solid, translucent, and hidden\nHides the layer only; node data keeps updating",
     "civmodern.map.nodes.tooltip.frozen": "§7Querying is off, so this shows cached territory only",
     "civmodern.screen.nodes.title": "Civ Modern Config (Node Overlay)",
     "civmodern.screen.nodes.query": "Query server",

@@ -25,7 +25,10 @@ import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 
+import net.minecraft.util.Mth;
+
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -67,6 +70,10 @@ public class NewWaypointModal extends Modal<FlowLayout> {
     }
 
     public void open(String name, int x, int y, int z) {
+        // Random hue at full saturation/brightness, so every waypoint starts vivid rather than red.
+        this.colour = Mth.hsvToRgb(ThreadLocalRandom.current().nextFloat(), 1.0f, 1.0f) & 0xFFFFFF;
+        this.previewColour = this.colour;
+
         Pattern inputFilter = Pattern.compile("^-?[0-9]*$");
         Predicate<String> numFilter = s -> inputFilter.matcher(s).matches();
 

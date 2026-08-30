@@ -48,6 +48,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
     private Waypoint waypoint;
     private boolean targeting = false;
     private boolean coordsPickerEnabled = true;
+    private ImageButton highlightButton;
 
     public EditWaypointModal(Waypoints waypoints) {
         super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 240, 116, UIContainers::verticalFlow));
@@ -115,9 +116,15 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         );
         this.colour = this.previewColour = waypoint.colour();
         colourPicker.setRVisible(false);
-        ImageButton highlightButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
-            this.waypoints.setTarget(new Waypoint("", this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), "target", 0xFF0000));
+        highlightButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
+            if (isHighlighted()) {
+                this.waypoints.setTarget(null);
+            } else {
+                this.waypoints.setTarget(new Waypoint("", this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), "target", 0xFF0000));
+            }
+            updateHighlightButton();
         });
+        updateHighlightButton();
         ImageButton moveButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/move.png"), imbg -> {
             this.visible = false;
             this.targeting = true;
@@ -187,6 +194,21 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         return grid;
     }
 
+    /** Whether this waypoint's position is the map's current highlight. */
+    private boolean isHighlighted() {
+        Waypoint target = this.waypoints.getTarget();
+        return this.waypoint != null && target != null
+            && target.x() == this.waypoint.x() && target.y() == this.waypoint.y() && target.z() == this.waypoint.z();
+    }
+
+    /**
+     * Keeps the highlight button's toggled look in sync, since the highlight can also be
+     * cleared elsewhere (e.g. the map's right-click "Clear highlighted waypoint" menu).
+     */
+    private void updateHighlightButton() {
+        highlightButton.setToggled(isHighlighted());
+    }
+
     public String getName() {
         return nameBox.getValue();
     }
@@ -197,6 +219,9 @@ public class EditWaypointModal extends Modal<FlowLayout> {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
+        if (visible && highlightButton != null) {
+            updateHighlightButton();
+        }
         super.render(guiGraphics, mouseX, mouseY, delta);
         if (visible) {
             this.colourPicker.setRVisible(true);

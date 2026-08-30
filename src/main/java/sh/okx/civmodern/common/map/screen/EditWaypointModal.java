@@ -4,10 +4,10 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.GridLayout;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
+import io.wispforest.owo.ui.core.ParentUIComponent;
 import io.wispforest.owo.ui.core.Positioning;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
@@ -31,6 +31,9 @@ import java.util.regex.Pattern;
 
 public class EditWaypointModal extends Modal<FlowLayout> {
 
+    private static final int MODAL_WIDTH = 200;
+    private static final int MODAL_HEIGHT = 120;
+
     private final Waypoints waypoints;
 
     private TextBoxComponent xBox;
@@ -51,7 +54,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
     private ImageButton highlightButton;
 
     public EditWaypointModal(Waypoints waypoints) {
-        super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 240, 116, UIContainers::verticalFlow));
+        super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - MODAL_WIDTH / 2, 48, MODAL_WIDTH, MODAL_HEIGHT, UIContainers::verticalFlow));
         super.layout.rootComponent.allowOverflow(true);
         this.waypoints = waypoints;
     }
@@ -129,13 +132,13 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             this.visible = false;
             this.targeting = true;
         });
-        xBox = UIComponents.textBox(Sizing.fixed(44), Integer.toString(waypoint.x()));
+        xBox = UIComponents.textBox(Sizing.fixed(50), Integer.toString(waypoint.x()));
         xBox.setFilter(numFilter);
         xBox.onChanged().subscribe(value -> this.updateDone());
-        yBox = UIComponents.textBox(Sizing.fixed(26), Integer.toString(waypoint.y()));
+        yBox = UIComponents.textBox(Sizing.fixed(32), Integer.toString(waypoint.y()));
         yBox.setFilter(numFilter);
         yBox.onChanged().subscribe(value -> this.updateDone());
-        zBox = UIComponents.textBox(Sizing.fixed(44), Integer.toString(waypoint.z()));
+        zBox = UIComponents.textBox(Sizing.fixed(50), Integer.toString(waypoint.z()));
         zBox.setFilter(numFilter);
         zBox.onChanged().subscribe(value -> this.updateDone());
 
@@ -155,13 +158,18 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(buildCoordsRow(highlightButton, moveButton, copyButton, deleteButton))
+                    .child(buildCoordsRow())
                     .margins(Insets.horizontal(4).withTop(4))
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(doneButton.horizontalSizing(Sizing.fill(28)).margins(Insets.right(8).withTop(1)).positioning(Positioning.relative(0, 0)))
-                    .child(cancelButton.horizontalSizing(Sizing.fill(28)).margins(Insets.right(8).withTop(1)))
+                    .child(buildButtonsRow(highlightButton, moveButton, copyButton, deleteButton))
+                    .margins(Insets.horizontal(4).withTop(4))
+            )
+            .child(
+                UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
+                    .child(doneButton.horizontalSizing(Sizing.fixed(45)).margins(Insets.right(3).withTop(1)).positioning(Positioning.relative(0, 0)))
+                    .child(cancelButton.horizontalSizing(Sizing.fixed(45)).margins(Insets.right(3).withTop(1)))
                     .child(colourBox)
                     .child(colourPicker.margins(Insets.top(1).withLeft(2)))
                     .horizontalAlignment(HorizontalAlignment.RIGHT)
@@ -173,25 +181,28 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         colourBox.moveCursorToStart(false);
     }
 
-    /**
-     * The X/Y/Z boxes and the action buttons share one grid row so the same right-margin gives
-     * uniform spacing across all of them, coordinate boxes included.
-     */
-    private GridLayout buildCoordsRow(ImageButton highlightButton, ImageButton moveButton, ImageButton copyButton, ImageButton deleteButton) {
-        GridLayout grid = UIContainers.grid(Sizing.content(), Sizing.content(), 2, 7)
-            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
-            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
-            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
-            .child(xBox.margins(Insets.right(3)), 1, 0)
-            .child(yBox.margins(Insets.right(3)), 1, 1)
-            .child(zBox.margins(Insets.right(3)), 1, 2)
-            .child(highlightButton.margins(Insets.right(3)), 1, 3);
+    /** The X/Y/Z labels and boxes, inline on one row, the same right-margin as everywhere else in the modal. */
+    private ParentUIComponent buildCoordsRow() {
+        return UIContainers.horizontalFlow(Sizing.content(), Sizing.content())
+            .child(UIComponents.label(Component.literal("X")).margins(Insets.right(4)))
+            .child(xBox.margins(Insets.right(6)))
+            .child(UIComponents.label(Component.literal("Y")).margins(Insets.right(4)))
+            .child(yBox.margins(Insets.right(6)))
+            .child(UIComponents.label(Component.literal("Z")).margins(Insets.right(4)))
+            .child(zBox)
+            .verticalAlignment(VerticalAlignment.CENTER);
+    }
+
+    /** The action buttons, on their own row between the coordinates and Done/Cancel/colour. */
+    private FlowLayout buildButtonsRow(ImageButton highlightButton, ImageButton moveButton, ImageButton copyButton, ImageButton deleteButton) {
+        FlowLayout row = UIContainers.horizontalFlow(Sizing.content(), Sizing.content())
+            .child(highlightButton.margins(Insets.right(3)));
         if (coordsPickerEnabled) {
-            grid.child(moveButton.margins(Insets.right(3)), 1, 4);
+            row.child(moveButton.margins(Insets.right(3)));
         }
-        grid.child(copyButton.margins(Insets.right(3)), 1, 5)
-            .child(deleteButton, 1, 6);
-        return grid;
+        row.child(copyButton.margins(Insets.right(3)))
+            .child(deleteButton);
+        return row;
     }
 
     /** Whether this waypoint's position is the map's current highlight. */

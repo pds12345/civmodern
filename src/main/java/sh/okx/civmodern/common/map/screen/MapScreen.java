@@ -345,6 +345,9 @@ public class MapScreen extends Screen {
                 if (editWaypointModal.getWaypoint() == waypoint && editWaypointModal.hasChanged()) {
                     continue;
                 }
+                if (!waypoint.visible()) {
+                    continue;
+                }
                 waypointByIcon.computeIfAbsent(waypoint.icon(), k -> new ArrayList<>()).add(waypoint);
             }
 
@@ -712,6 +715,9 @@ public class MapScreen extends Screen {
         double mouseWorldY = (mouseY * scale + y);
         hoveredWaypoint = null;
         for (Waypoint waypoint : waypointList) {
+            if (!waypoint.visible()) {
+                continue;
+            }
             if (closest == null) {
                 closest = waypoint;
             } else if (Math.abs(waypoint.x() - mouseWorldX) + Math.abs(waypoint.z() - mouseWorldY) < Math.abs(closest.x() - mouseWorldX) + Math.abs(closest.z() - mouseWorldY)) {

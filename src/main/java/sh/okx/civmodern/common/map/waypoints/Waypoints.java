@@ -43,7 +43,7 @@ public class Waypoints {
     private void load() {
         synchronized (this.connection) {
             try (Statement statement = connection.createStatement()) {
-                ResultSet resultSet = statement.executeQuery("SELECT name, x, y, z, icon, colour FROM waypoints");
+                ResultSet resultSet = statement.executeQuery("SELECT name, x, y, z, icon, colour, visible FROM waypoints");
 
                 while (resultSet.next()) {
                     this.addWaypoint(new Waypoint(
@@ -52,7 +52,8 @@ public class Waypoints {
                         resultSet.getInt("y"),
                         resultSet.getInt("z"),
                         resultSet.getString("icon"),
-                        resultSet.getInt("colour")
+                        resultSet.getInt("colour"),
+                        resultSet.getBoolean("visible")
                     ));
                 }
             } catch (SQLException e) {
@@ -65,7 +66,9 @@ public class Waypoints {
         synchronized (this.connection) {
             try {
                 this.connection.setAutoCommit(false);
-                try (PreparedStatement statement = connection.prepareStatement("INSERT INTO waypoints VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET name = ?, icon = ?, colour = ?");
+                try (PreparedStatement statement = connection.prepareStatement(
+                         "INSERT INTO waypoints (name, x, y, z, icon, colour, visible) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                             + "ON CONFLICT DO UPDATE SET name = ?, icon = ?, colour = ?, visible = ?");
                      Statement delete = connection.createStatement()) {
                     delete.executeUpdate("DELETE FROM waypoints");
                     for (Int2ObjectMap<Int2ObjectMap<Waypoint>> zEntry : waypoints.values()) {
@@ -77,9 +80,11 @@ public class Waypoints {
                                 statement.setInt(4, waypoint.z());
                                 statement.setString(5, "waypoint");
                                 statement.setInt(6, waypoint.colour());
-                                statement.setString(7, waypoint.name());
-                                statement.setString(8, "waypoint");
-                                statement.setInt(9, waypoint.colour());
+                                statement.setBoolean(7, waypoint.visible());
+                                statement.setString(8, waypoint.name());
+                                statement.setString(9, "waypoint");
+                                statement.setInt(10, waypoint.colour());
+                                statement.setBoolean(11, waypoint.visible());
                                 statement.addBatch();
                             }
                         }
@@ -103,6 +108,10 @@ public class Waypoints {
         this.waypoints.computeIfAbsent(waypoint.x(), k -> new Int2ObjectOpenHashMap<>())
             .computeIfAbsent(waypoint.z(), k -> new Int2ObjectOpenHashMap<>())
             .put(waypoint.y(), waypoint);
+    }
+
+    public void setVisible(Waypoint waypoint, boolean visible) {
+        addWaypoint(new Waypoint(waypoint.name(), waypoint.x(), waypoint.y(), waypoint.z(), waypoint.icon(), waypoint.colour(), visible));
     }
 
     public void removeWaypoint(Waypoint waypoint) {
@@ -162,6 +171,7 @@ public class Waypoints {
         LocalPlayer player = Minecraft.getInstance().player;
         int renderDistance = AbstractCivModernMod.getInstance().getConfig().getWaypointRenderDistance();
         List<Waypoint> nearbyWaypoints = getWaypoints(player.getBlockX(), player.getBlockY(), player.getBlockZ(), renderDistance);
+        nearbyWaypoints.removeIf(waypoint -> !waypoint.visible());
         if (getTarget() != null) {
             nearbyWaypoints.add(getTarget());
         }

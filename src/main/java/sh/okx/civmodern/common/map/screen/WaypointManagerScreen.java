@@ -28,6 +28,8 @@ import java.util.List;
 public class WaypointManagerScreen extends Screen {
 
     private static final int ROW_HEIGHT = 20;
+    private static final int TOGGLE_COLUMN = 18;
+    private static final int TOGGLE_SIZE = 12;
     private static final int ICON_COLUMN = 26;
     private static final int X_COLUMN = 52;
     private static final int Y_COLUMN = 44;
@@ -38,6 +40,8 @@ public class WaypointManagerScreen extends Screen {
     private static final int NUMBER_COLOUR = 0xFFCCCCCC;
     private static final int STRIPE_COLOUR = 0x14FFFFFF;
     private static final int HOVER_COLOUR = 0x33FFFFFF;
+    private static final int HIDDEN_NAME_COLOUR = 0x88FFFFFF;
+    private static final int HIDDEN_NUMBER_COLOUR = 0x88CCCCCC;
 
     private static final int SORT_BUTTON_Y = 24;
     private static final int SORT_BUTTON_HEIGHT = 20;
@@ -178,7 +182,7 @@ public class WaypointManagerScreen extends Screen {
         int zRight = tableRight - 6;
         int yRight = zRight - Z_COLUMN;
         int xRight = yRight - Y_COLUMN;
-        int nameLeft = left + ICON_COLUMN;
+        int nameLeft = left + TOGGLE_COLUMN + ICON_COLUMN;
         int nameRight = xRight - X_COLUMN;
 
         guiGraphics.drawString(font, "Name", nameLeft, HEADER_ROW_Y, HEADER_COLOUR);
@@ -209,20 +213,33 @@ public class WaypointManagerScreen extends Screen {
 
             Waypoint waypoint = list.get(i);
             int textY = rowY + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
+            boolean visible = waypoint.visible();
+
+            // The hide/show toggle: an outlined box, filled solid while visible and hollow
+            // (dark centre) while hidden.
+            int toggleLeft = left + 3;
+            int toggleTop = rowY + (ROW_HEIGHT - TOGGLE_SIZE) / 2;
+            guiGraphics.fill(toggleLeft, toggleTop, toggleLeft + TOGGLE_SIZE, toggleTop + TOGGLE_SIZE, HEADER_COLOUR);
+            guiGraphics.fill(toggleLeft + 1, toggleTop + 1, toggleLeft + TOGGLE_SIZE - 1, toggleTop + TOGGLE_SIZE - 1,
+                visible ? 0xFFFFFFFF : 0xFF222222);
 
             // The very diamond the map draws: same texture, tinted with the waypoint's colour.
+            int iconTint = (visible ? 0xFF000000 : 0x66000000) | waypoint.colour();
             guiGraphics.blit(RenderPipelines.GUI_TEXTURED, waypoint.resourceLocation(),
-                left + 5, rowY + 2, 0, 0, 16, 16, 16, 16, 0xFF000000 | waypoint.colour());
+                left + TOGGLE_COLUMN + 5, rowY + 2, 0, 0, 16, 16, 16, 16, iconTint);
+
+            int nameColour = visible ? NAME_COLOUR : HIDDEN_NAME_COLOUR;
+            int numberColour = visible ? NUMBER_COLOUR : HIDDEN_NUMBER_COLOUR;
 
             String name = font.plainSubstrByWidth(waypoint.name(), nameRight - nameLeft - 8);
-            guiGraphics.drawString(font, name, nameLeft, textY, NAME_COLOUR);
+            guiGraphics.drawString(font, name, nameLeft, textY, nameColour);
 
             String x = Integer.toString(waypoint.x());
             String y = Integer.toString(waypoint.y());
             String z = Integer.toString(waypoint.z());
-            guiGraphics.drawString(font, x, xRight - font.width(x), textY, NUMBER_COLOUR);
-            guiGraphics.drawString(font, y, yRight - font.width(y), textY, NUMBER_COLOUR);
-            guiGraphics.drawString(font, z, zRight - font.width(z), textY, NUMBER_COLOUR);
+            guiGraphics.drawString(font, x, xRight - font.width(x), textY, numberColour);
+            guiGraphics.drawString(font, y, yRight - font.width(y), textY, numberColour);
+            guiGraphics.drawString(font, z, zRight - font.width(z), textY, numberColour);
         }
         guiGraphics.disableScissor();
 
@@ -245,6 +262,12 @@ public class WaypointManagerScreen extends Screen {
         return (int) ((mouseY - rowsTop() + scroll) / ROW_HEIGHT);
     }
 
+    /** @return whether the given x is over the hide/show toggle box, rather than the rest of the row. */
+    private boolean isOnToggle(double mouseX) {
+        int toggleLeft = tableLeft() + 3;
+        return mouseX >= toggleLeft && mouseX < toggleLeft + TOGGLE_SIZE;
+    }
+
     // ------------------------------------------------------------- input
 
     @Override
@@ -261,7 +284,12 @@ public class WaypointManagerScreen extends Screen {
         if (row < 0 || row >= list.size()) {
             return false;
         }
-        editModal.setWaypoint(list.get(row));
+        Waypoint waypoint = list.get(row);
+        if (isOnToggle(event.x())) {
+            waypoints.setVisible(waypoint, !waypoint.visible());
+            return true;
+        }
+        editModal.setWaypoint(waypoint);
         editModal.setVisible(true);
         // Rows are not widgets, so nothing else claims the click's focus; direct is safe here.
         setFocused(editModal);

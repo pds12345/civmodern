@@ -297,7 +297,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             int y = Integer.parseInt(this.yBox.getValue());
             int z = Integer.parseInt(this.zBox.getValue());
             waypoints.removeWaypoint(this.waypoint);
-            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, this.waypoint.icon(), this.colour));
+            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, this.waypoint.icon(), this.colour, this.waypoint.visible()));
             setVisible(false);
         } catch (NumberFormatException ignored) {
 

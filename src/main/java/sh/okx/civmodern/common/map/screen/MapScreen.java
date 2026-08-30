@@ -731,7 +731,7 @@ public class MapScreen extends Screen {
             return true;
         }
 
-        if (scrollDir < 0 && zoom < 32) {
+        if (scrollDir < 0 && zoom < config.getMaxZoom()) {
             // zoom out
             Window window = Minecraft.getInstance().getWindow();
             float scale = (float) window.getGuiScale() * zoom;

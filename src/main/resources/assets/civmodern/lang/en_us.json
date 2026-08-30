@@ -77,6 +77,7 @@
     "civmodern.screen.waypoints.title": "Waypoints",
     "civmodern.screen.map.waypointmanager": "Waypoints Manager",
     "civmodern.screen.map.waypointdistance": "Waypoint distance: %s",
+    "civmodern.screen.map.maxzoom": "Max zoom: %s",
     "civmodern.screen.map.waypointmanager.noworld": "Join a world first",
     "civmodern.screen.waypoints.empty": "No waypoints yet",
     "civmodern.map.highlight.tooltip": "Set highlighted waypoint",

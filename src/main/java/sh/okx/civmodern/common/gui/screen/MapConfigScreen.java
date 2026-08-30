@@ -142,6 +142,23 @@ public class MapConfigScreen extends AbstractConfigScreen {
                     Integer.toString((int) value));
             }
         }));
+        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 2, 32, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getMaxZoom();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setMaxZoom((float) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.map.maxzoom",
+                    Integer.toString((int) value));
+            }
+        }));
         offset += 24;
         int waypointScalingLabelY = offset;
         offset += 12;

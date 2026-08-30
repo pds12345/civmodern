@@ -53,6 +53,7 @@ public class CivMapConfig {
     private float minimapZoom;
     private float waypointBaseZoom;
     private float waypointZoomLogBase;
+    private float maxZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
@@ -106,6 +107,8 @@ public class CivMapConfig {
         // log base controlling how gently they shrink as the map zooms out past it.
         this.waypointBaseZoom = Float.parseFloat(properties.getProperty("waypoint_base_zoom", "0.03125"));
         this.waypointZoomLogBase = Float.parseFloat(properties.getProperty("waypoint_zoom_log_base", "3"));
+        // Furthest-out zoom level (blocks per pixel) the map screen allows scrolling to.
+        this.maxZoom = Float.parseFloat(properties.getProperty("max_zoom", "32"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
@@ -172,6 +175,7 @@ public class CivMapConfig {
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
             properties.setProperty("waypoint_base_zoom", Float.toString(waypointBaseZoom));
             properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
+            properties.setProperty("max_zoom", Float.toString(maxZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
@@ -473,6 +477,14 @@ public class CivMapConfig {
 
     public void setWaypointZoomLogBase(float waypointZoomLogBase) {
         this.waypointZoomLogBase = waypointZoomLogBase;
+    }
+
+    public float getMaxZoom() {
+        return maxZoom;
+    }
+
+    public void setMaxZoom(float maxZoom) {
+        this.maxZoom = maxZoom;
     }
 
     public boolean isCratesAreCompacted() {

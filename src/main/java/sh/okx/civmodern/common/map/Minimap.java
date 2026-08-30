@@ -13,9 +13,14 @@ import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.Scoreboard;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
+import sh.okx.civmodern.common.map.nodes.NodeCache;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -38,6 +43,7 @@ public class Minimap {
     private final Waypoints waypoints;
     private final PlayerWaypoints playerWaypoints;
     private final MapCache cache;
+    private final NodeCache nodes;
     private final CivMapConfig config;
     private final ColourProvider provider;
 
@@ -48,10 +54,11 @@ public class Minimap {
     }
 
 
-    public Minimap(Waypoints waypoints, PlayerWaypoints playerWaypoints, MapCache cache, CivMapConfig config, ColourProvider provider) {
+    public Minimap(Waypoints waypoints, PlayerWaypoints playerWaypoints, MapCache cache, NodeCache nodes, CivMapConfig config, ColourProvider provider) {
         this.waypoints = waypoints;
         this.playerWaypoints = playerWaypoints;
         this.cache = cache;
+        this.nodes = nodes;
         this.config = config;
         this.provider = provider;
     }
@@ -146,6 +153,18 @@ public class Minimap {
         graphics.fill(0, 0, (int) (size + 4), (int) (size + 4), 0xff000000 | provider.getBorderColour());
         graphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(graphics, 0, 0, translateX + config.getMinimapSize(), translateY + config.getMinimapSize(), matrices,
             ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
+
+        // Node territory over the tiles, under the waypoints and chevron — as on the map screen.
+        NodeOverlayMode nodeMode = config.getMinimapNodeOverlayMode();
+        if (nodeMode.isVisible() && nodes != null
+            && AbstractCivModernMod.getInstance().getNodeApi().isAvailable()) {
+            matrices.pushMatrix();
+            // Back onto the map area: the pose currently sits at the border's corner, 2px out.
+            matrices.translate(2, 2);
+            NodeOverlayRenderer.render(graphics, nodes, config, nodeMode, x, y, (int) size, (int) size, zoom,
+                new ScreenRectangle(translateX, translateY, (int) size, (int) size));
+            matrices.popMatrix();
+        }
 
         if (config.isShowMinimapCoords()) {
             event.guiGraphics().drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 6, -1);

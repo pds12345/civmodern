@@ -32,6 +32,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix3x2f;
+import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.events.ClientTickEvent;
@@ -283,6 +284,15 @@ public class Radar {
         guiGraphics.pose().popMatrix();
     }
 
+    /** White for an unlisted or neutral player; green/red for friendly/hostile. */
+    private int nameColour(String username) {
+        PlayerRelations relations = AbstractCivModernMod.getInstance().getWorldListener().getPlayerRelations();
+        if (relations == null) {
+            return -1;
+        }
+        return relations.getRelation(username).colour();
+    }
+
     private void renderPlayers(GuiGraphics guiGraphics, float delta) {
         Minecraft minecraft = Minecraft.getInstance();
 
@@ -327,7 +337,7 @@ public class Radar {
             guiGraphics.pose().scale(0.6f * config.getTextSize(), 0.6f * config.getTextSize());
             Component component = Component.literal(
                 player.getScoreboardName() + " (" + ((int) Math.round(Math.sqrt(dx * dx + dz * dz))) + ")");
-            guiGraphics.drawCenteredString(minecraft.font, component, 0, 1, -1);
+            guiGraphics.drawCenteredString(minecraft.font, component, 0, 1, nameColour(player.getScoreboardName()));
 
             guiGraphics.pose().popMatrix();
             guiGraphics.pose().popMatrix();

@@ -10,6 +10,7 @@ import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Positioning;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
+import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,7 +26,10 @@ import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 
+import net.minecraft.util.Mth;
+
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -41,6 +45,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
     private TextBoxComponent nameBox;
 
     private Button doneButton;
+    private Button cancelButton;
 
     private HsbColourPicker colourPicker;
     private int colour = 0xFF0000;
@@ -48,18 +53,48 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
     private boolean targeting = false;
 
+    private Runnable onDone;
+    private Runnable onCancel;
+    private boolean coordsPickerEnabled = true;
+
     public NewWaypointModal(Waypoints waypoints) {
         super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104, 48, 196, 116, UIContainers::verticalFlow));
         super.layout.rootComponent.allowOverflow(true);
         this.waypoints = waypoints;
     }
 
+    public void setOnDone(Runnable onDone) {
+        this.onDone = onDone;
+    }
+
+    /** Called after the modal has hidden itself in response to the cancel button. */
+    public void setOnCancel(Runnable onCancel) {
+        this.onCancel = onCancel;
+    }
+
+    /** The target-style picker only makes sense when a map is behind the modal. */
+    public void setCoordsPickerEnabled(boolean coordsPickerEnabled) {
+        this.coordsPickerEnabled = coordsPickerEnabled;
+    }
+
     public void open(String name, int x, int y, int z) {
+        // This instance is shared across several entry points; a stale callback from a previous
+        // open() must not fire for one that never asked for it.
+        this.onDone = null;
+        this.onCancel = null;
+
+        // Random hue at full saturation/brightness, so every waypoint starts vivid rather than red.
+        this.colour = Mth.hsvToRgb(ThreadLocalRandom.current().nextFloat(), 1.0f, 1.0f) & 0xFFFFFF;
+        this.previewColour = this.colour;
+
         Pattern inputFilter = Pattern.compile("^-?[0-9]*$");
         Predicate<String> numFilter = s -> inputFilter.matcher(s).matches();
 
         doneButton = Button.builder(CommonComponents.GUI_DONE, button -> {
             this.done();
+        }).build();
+        cancelButton = Button.builder(CommonComponents.GUI_CANCEL, button -> {
+            this.cancel();
         }).build();
         ImageButton coordsButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
             this.visible = false;
@@ -100,6 +135,27 @@ public class NewWaypointModal extends Modal<FlowLayout> {
         colourPicker.setRVisible(false);
 
         nameBox = UIComponents.textBox(Sizing.expand(), name);
+
+        FlowLayout coordsRow = UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(40))
+            .child(UIContainers.grid(Sizing.content(), Sizing.content(), 2, 3)
+                .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
+                .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
+                .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
+                .child(xBox.margins(Insets.right(3)), 1, 0)
+                .child(yBox.margins(Insets.right(3)), 1, 1)
+                .child(zBox.margins(Insets.right(3)), 1, 2)
+                .positioning(Positioning.relative(0, 0))
+            );
+        if (coordsPickerEnabled) {
+            coordsRow.child(
+                UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40))
+                    .child(coordsButton.margins(Insets.right(0)))
+                    .margins(Insets.bottom(6))
+                    .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
+                    .positioning(Positioning.relative(100, 100))
+            );
+        }
+
         this.layout.rootComponent.clearChildren();
         this.layout.rootComponent
             .child(
@@ -111,29 +167,13 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(40))
-                        .child(UIContainers.grid(Sizing.content(), Sizing.content(), 2, 3)
-                            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
-                            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
-                            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
-                            .child(xBox.margins(Insets.right(3)), 1, 0)
-                            .child(yBox.margins(Insets.right(3)), 1, 1)
-                            .child(zBox.margins(Insets.right(3)), 1, 2)
-                            .positioning(Positioning.relative(0, 0))
-                        )
-                        .child(
-                            UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40))
-                                .child(coordsButton.margins(Insets.right(0)))
-                                .margins(Insets.bottom(6))
-                                .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
-                                .positioning(Positioning.relative(100, 100))
-                        )
-                    )
+                    .child(coordsRow)
                     .margins(Insets.horizontal(4).withTop(4))
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(24))
-                    .child(doneButton.horizontalSizing(Sizing.fixed(93)).margins(Insets.right(4).withTop(1)))
+                    .child(doneButton.horizontalSizing(Sizing.fixed(45)).margins(Insets.right(3).withTop(1)))
+                    .child(cancelButton.horizontalSizing(Sizing.fixed(45)).margins(Insets.right(4).withTop(1)))
                     .child(colourBox)
                     .child(colourPicker.margins(Insets.top(1).withLeft(2)))
                     .margins(Insets.horizontal(4).withTop(4))
@@ -143,6 +183,17 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
         this.layout.inflateAndMount();
         colourBox.moveCursorToStart(false);
+        focusNameBox();
+    }
+
+    /**
+     * owo-internal focus only; the hosting screen must also make this modal its focused
+     * child (setFocused) or keystrokes never reach it.
+     */
+    public void focusNameBox() {
+        if (nameBox != null) {
+            this.layout.rootComponent.focusHandler().focus(nameBox, UIComponent.FocusSource.KEYBOARD_CYCLE);
+        }
     }
 
     @Override
@@ -212,8 +263,18 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             int z = Integer.parseInt(this.zBox.getValue());
             waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, "waypoint", this.colour));
             setVisible(false);
+            if (this.onDone != null) {
+                this.onDone.run();
+            }
         } catch (NumberFormatException ignored) {
 
+        }
+    }
+
+    public void cancel() {
+        setVisible(false);
+        if (this.onCancel != null) {
+            this.onCancel.run();
         }
     }
 

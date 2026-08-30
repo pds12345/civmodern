@@ -4,6 +4,7 @@ import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.component.TextBoxComponent;
 import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.GridLayout;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
@@ -46,11 +47,18 @@ public class EditWaypointModal extends Modal<FlowLayout> {
 
     private Waypoint waypoint;
     private boolean targeting = false;
+    private boolean coordsPickerEnabled = true;
+    private ImageButton highlightButton;
 
     public EditWaypointModal(Waypoints waypoints) {
-        super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 220, 116, UIContainers::verticalFlow));
+        super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - 104 - 12, 48, 240, 116, UIContainers::verticalFlow));
         super.layout.rootComponent.allowOverflow(true);
         this.waypoints = waypoints;
+    }
+
+    /** The target-style picker only makes sense when a map is behind the modal. */
+    public void setCoordsPickerEnabled(boolean coordsPickerEnabled) {
+        this.coordsPickerEnabled = coordsPickerEnabled;
     }
 
     public void setWaypoint(Waypoint waypoint) {
@@ -68,8 +76,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             this.done();
         }).build();
         Button cancelButton = Button.builder(CommonComponents.GUI_CANCEL, button -> {
-            setVisible(false);
-            this.waypoint = null;
+            this.cancel();
         }).build();
         ImageButton deleteButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/delete.png"), imbg -> {
             if (this.waypoint != null) {
@@ -109,7 +116,16 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         );
         this.colour = this.previewColour = waypoint.colour();
         colourPicker.setRVisible(false);
-        ImageButton coordsButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
+        highlightButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/target.png"), imbg -> {
+            if (isHighlighted()) {
+                this.waypoints.setTarget(null);
+            } else {
+                this.waypoints.setTarget(new Waypoint("", this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), "target", 0xFF0000));
+            }
+            updateHighlightButton();
+        });
+        updateHighlightButton();
+        ImageButton moveButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/move.png"), imbg -> {
             this.visible = false;
             this.targeting = true;
         });
@@ -139,26 +155,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(UIContainers.horizontalFlow(Sizing.fill(), Sizing.fixed(40))
-                        .child(UIContainers.grid(Sizing.content(), Sizing.content(), 2, 3)
-                            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
-                            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
-                            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
-                            .child(xBox.margins(Insets.right(3)), 1, 0)
-                            .child(yBox.margins(Insets.right(3)), 1, 1)
-                            .child(zBox.margins(Insets.right(3)), 1, 2)
-                            .positioning(Positioning.relative(0, 0))
-                        )
-                        .child(
-                            UIContainers.horizontalFlow(Sizing.content(), Sizing.fixed(40))
-                                .child(coordsButton.margins(Insets.right(4)))
-                                .child(copyButton.margins(Insets.right(4)))
-                                .child(deleteButton)
-                                .margins(Insets.bottom(6))
-                                .alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM)
-                                .positioning(Positioning.relative(100, 100))
-                        )
-                    )
+                    .child(buildCoordsRow(highlightButton, moveButton, copyButton, deleteButton))
                     .margins(Insets.horizontal(4).withTop(4))
             )
             .child(
@@ -176,6 +173,42 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         colourBox.moveCursorToStart(false);
     }
 
+    /**
+     * The X/Y/Z boxes and the action buttons share one grid row so the same right-margin gives
+     * uniform spacing across all of them, coordinate boxes included.
+     */
+    private GridLayout buildCoordsRow(ImageButton highlightButton, ImageButton moveButton, ImageButton copyButton, ImageButton deleteButton) {
+        GridLayout grid = UIContainers.grid(Sizing.content(), Sizing.content(), 2, 7)
+            .child(UIComponents.label(Component.literal("X")).margins(Insets.of(0, 4, 1, 0)), 0, 0)
+            .child(UIComponents.label(Component.literal("Y")).margins(Insets.of(0, 4, 1, 0)), 0, 1)
+            .child(UIComponents.label(Component.literal("Z")).margins(Insets.of(0, 4, 1, 0)), 0, 2)
+            .child(xBox.margins(Insets.right(3)), 1, 0)
+            .child(yBox.margins(Insets.right(3)), 1, 1)
+            .child(zBox.margins(Insets.right(3)), 1, 2)
+            .child(highlightButton.margins(Insets.right(3)), 1, 3);
+        if (coordsPickerEnabled) {
+            grid.child(moveButton.margins(Insets.right(3)), 1, 4);
+        }
+        grid.child(copyButton.margins(Insets.right(3)), 1, 5)
+            .child(deleteButton, 1, 6);
+        return grid;
+    }
+
+    /** Whether this waypoint's position is the map's current highlight. */
+    private boolean isHighlighted() {
+        Waypoint target = this.waypoints.getTarget();
+        return this.waypoint != null && target != null
+            && target.x() == this.waypoint.x() && target.y() == this.waypoint.y() && target.z() == this.waypoint.z();
+    }
+
+    /**
+     * Keeps the highlight button's toggled look in sync, since the highlight can also be
+     * cleared elsewhere (e.g. the map's right-click "Clear highlighted waypoint" menu).
+     */
+    private void updateHighlightButton() {
+        highlightButton.setToggled(isHighlighted());
+    }
+
     public String getName() {
         return nameBox.getValue();
     }
@@ -186,6 +219,9 @@ public class EditWaypointModal extends Modal<FlowLayout> {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
+        if (visible && highlightButton != null) {
+            updateHighlightButton();
+        }
         super.render(guiGraphics, mouseX, mouseY, delta);
         if (visible) {
             this.colourPicker.setRVisible(true);
@@ -266,6 +302,11 @@ public class EditWaypointModal extends Modal<FlowLayout> {
         } catch (NumberFormatException ignored) {
 
         }
+    }
+
+    public void cancel() {
+        setVisible(false);
+        this.waypoint = null;
     }
 
     public boolean isTargeting() {

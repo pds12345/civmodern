@@ -21,12 +21,14 @@ public class PositionContextMenu extends Modal<FlowLayout> {
 
     private final Waypoints waypoints;
     private final NewWaypointModal newWaypointModal;
+    private final Runnable focusNewWaypointModal;
     private final List<ScalableLabelComponent> options = new ArrayList<>();
 
-    public PositionContextMenu(Waypoints waypoints, NewWaypointModal newWaypointModal) {
+    public PositionContextMenu(Waypoints waypoints, NewWaypointModal newWaypointModal, Runnable focusNewWaypointModal) {
         super(OwoUIAdapter.createWithoutScreen(0, 0, 80, 46, UIContainers::verticalFlow));
         this.waypoints = waypoints;
         this.newWaypointModal = newWaypointModal;
+        this.focusNewWaypointModal = focusNewWaypointModal;
     }
 
     public void open(int targetX, Short targetY, int targetZ, int x, int z) {
@@ -36,6 +38,7 @@ public class PositionContextMenu extends Modal<FlowLayout> {
             this.setVisible(false);
             newWaypointModal.open("", targetX, targetY != null ? targetY + 2 : Minecraft.getInstance().player.getBlockY() + 1, targetZ);
             newWaypointModal.setVisible(true);
+            focusNewWaypointModal.run();
         });
         options.add(createWaypoint);
         ScalableLabelComponent teleportHere = new ScalableLabelComponent(Component.literal("Teleport here").withColor(targetY == null ? 0xff777777 : 0xffffffff), c -> {
@@ -70,7 +73,14 @@ public class PositionContextMenu extends Modal<FlowLayout> {
             .padding(Insets.both(2, 3))
             .surface(Surface.TOOLTIP);
 
-        this.layout.moveAndResize(x, z, this.layout.width(), this.layout.height());
+        int boxWidth = this.layout.width();
+        int boxHeight = this.layout.height();
+        int screenWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+        int screenHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        int clampedX = Math.max(2, Math.min(x, screenWidth - boxWidth - 2));
+        int clampedZ = Math.max(2, Math.min(z, screenHeight - boxHeight - 2));
+
+        this.layout.moveAndResize(clampedX, clampedZ, boxWidth, boxHeight);
     }
 
     @Override

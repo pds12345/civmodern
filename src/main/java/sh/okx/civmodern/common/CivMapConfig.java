@@ -7,6 +7,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 public class CivMapConfig {
@@ -48,14 +49,17 @@ public class CivMapConfig {
     private int minimapSize;
     private boolean playerWaypointsEnabled;
     private boolean waypointRenderingEnabled;
+    private int waypointRenderDistance;
     private float minimapZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
     private int borderColour;
-    private boolean nodeOverlayEnabled;
+    private NodeOverlayMode nodeOverlayMode;
+    private NodeOverlayMode minimapNodeOverlayMode;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
+    private float nodeTranslucentOpacity;
     private boolean nodeOverlayBorders;
     private boolean nodeChunkGrid;
     private boolean nodeShowUnclaimed;
@@ -94,16 +98,28 @@ public class CivMapConfig {
         this.minimapSize = Integer.parseInt(properties.getProperty("minimap_size", "100"));
         this.playerWaypointsEnabled = Boolean.parseBoolean(properties.getProperty("player_waypoints_enabled", "true"));
         this.waypointRenderingEnabled = Boolean.parseBoolean(properties.getProperty("waypoint_rendering_enabled", "true"));
+        this.waypointRenderDistance = Integer.parseInt(properties.getProperty("waypoint_render_distance", "2000"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
-        this.nodeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true"));
+        // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
+        // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
+        String overlayMode = properties.getProperty("node_overlay_mode");
+        if (overlayMode == null) {
+            overlayMode = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true")) ? "on" : "off";
+        }
+        this.nodeOverlayMode = NodeOverlayMode.fromString(overlayMode);
+        // Off unless asked for: the minimap is glanced at in fights, so territory colour joins it
+        // only when the player opts in (the toggle keybind, default Y).
+        this.minimapNodeOverlayMode = NodeOverlayMode.fromString(
+            properties.getProperty("minimap_node_overlay_mode", "off"));
         this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
         // existing config does not silently keep the old translucent value.
         this.nodeOverlayOpacity = Float.parseFloat(properties.getProperty("node_fill_opacity", "1.0"));
+        this.nodeTranslucentOpacity = Float.parseFloat(properties.getProperty("node_translucent_opacity", "0.4"));
         this.nodeOverlayBorders = Boolean.parseBoolean(properties.getProperty("node_overlay_borders", "true"));
         this.nodeChunkGrid = Boolean.parseBoolean(properties.getProperty("node_chunk_grid", "true"));
         this.nodeShowUnclaimed = Boolean.parseBoolean(properties.getProperty("node_show_unclaimed", "true"));
@@ -146,14 +162,17 @@ public class CivMapConfig {
             properties.setProperty("minimap_size", Integer.toString(minimapSize));
             properties.setProperty("player_waypoints_enabled", Boolean.toString(playerWaypointsEnabled));
             properties.setProperty("waypoint_rendering_enabled", Boolean.toString(waypointRenderingEnabled));
+            properties.setProperty("waypoint_render_distance", Integer.toString(waypointRenderDistance));
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("border_colour", Integer.toString(borderColour));
-            properties.setProperty("node_overlay_enabled", Boolean.toString(nodeOverlayEnabled));
+            properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
+            properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
             properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
+            properties.setProperty("node_translucent_opacity", Float.toString(nodeTranslucentOpacity));
             properties.setProperty("node_overlay_borders", Boolean.toString(nodeOverlayBorders));
             properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
             properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
@@ -416,6 +435,14 @@ public class CivMapConfig {
         this.waypointRenderingEnabled = waypointRenderingEnabled;
     }
 
+    public int getWaypointRenderDistance() {
+        return waypointRenderDistance;
+    }
+
+    public void setWaypointRenderDistance(int waypointRenderDistance) {
+        this.waypointRenderDistance = waypointRenderDistance;
+    }
+
     public float getMinimapZoom() {
         return minimapZoom;
     }
@@ -456,13 +483,22 @@ public class CivMapConfig {
         return borderColour;
     }
 
-    /** Whether the overlay is drawn on the map. Independent of whether the server is queried. */
-    public boolean isNodeOverlayEnabled() {
-        return nodeOverlayEnabled;
+    /** How the overlay is drawn on the map, if at all. Independent of whether the server is queried. */
+    public NodeOverlayMode getNodeOverlayMode() {
+        return nodeOverlayMode;
     }
 
-    public void setNodeOverlayEnabled(boolean nodeOverlayEnabled) {
-        this.nodeOverlayEnabled = nodeOverlayEnabled;
+    public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
+        this.nodeOverlayMode = nodeOverlayMode;
+    }
+
+    /** How the overlay is drawn on the minimap. Deliberately independent of the map's mode. */
+    public NodeOverlayMode getMinimapNodeOverlayMode() {
+        return minimapNodeOverlayMode;
+    }
+
+    public void setMinimapNodeOverlayMode(NodeOverlayMode minimapNodeOverlayMode) {
+        this.minimapNodeOverlayMode = minimapNodeOverlayMode;
     }
 
     /**
@@ -477,12 +513,22 @@ public class CivMapConfig {
         this.nodeQueryEnabled = nodeQueryEnabled;
     }
 
+    /** Fill opacity in the solid overlay mode. Seams and markers stay at full ink there. */
     public float getNodeOverlayOpacity() {
         return nodeOverlayOpacity;
     }
 
     public void setNodeOverlayOpacity(float nodeOverlayOpacity) {
         this.nodeOverlayOpacity = nodeOverlayOpacity;
+    }
+
+    /** Opacity of the whole layer — fills and lines alike — in the translucent overlay mode. */
+    public float getNodeTranslucentOpacity() {
+        return nodeTranslucentOpacity;
+    }
+
+    public void setNodeTranslucentOpacity(float nodeTranslucentOpacity) {
+        this.nodeTranslucentOpacity = nodeTranslucentOpacity;
     }
 
     public boolean isNodeOverlayBorders() {

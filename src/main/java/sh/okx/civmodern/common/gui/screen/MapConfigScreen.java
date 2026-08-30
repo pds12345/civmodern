@@ -5,13 +5,17 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
+import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
+import sh.okx.civmodern.common.map.screen.WaypointManagerScreen;
+import sh.okx.civmodern.common.map.waypoints.Waypoints;
 import sh.okx.civmodern.common.gui.DoubleValue;
 import sh.okx.civmodern.common.gui.widget.DoubleOptionUpdateableSliderWidget;
 import sh.okx.civmodern.common.gui.widget.HsbColourPicker;
@@ -108,6 +112,36 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         offset += 24;
         addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.coords"), this.config::isShowMinimapCoords, this.config::setShowMinimapCoords, null, ToggleButton.DEFAULT_NARRATION));
+        Waypoints waypoints = AbstractCivModernMod.getInstance().getWorldListener().getWaypoints();
+        Button managerButton = Button.builder(Component.translatable("civmodern.screen.map.waypointmanager"), button -> {
+            if (waypoints != null) {
+                Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
+            }
+        }).pos(right, offset).size(150, 20).build();
+        // Waypoints are per-world storage, so from the title screen there is nothing to manage.
+        managerButton.active = waypoints != null;
+        if (waypoints == null) {
+            managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
+        }
+        addRenderableWidget(managerButton);
+        offset += 24;
+        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 100, 5000, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getWaypointRenderDistance();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setWaypointRenderDistance((int) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.map.waypointdistance",
+                    Integer.toString((int) value));
+            }
+        }));
         offset += 24;
         chevronColourY = offset;
 

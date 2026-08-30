@@ -24,6 +24,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec2;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
+import org.lwjgl.glfw.GLFW;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.navigation.AutoNavigation;
@@ -33,6 +34,7 @@ import sh.okx.civmodern.common.map.RegionAtlasTexture;
 import sh.okx.civmodern.common.map.RegionKey;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
+import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
@@ -80,6 +82,7 @@ public class MapScreen extends Screen {
     private NodeApiClient.State nodeTooltipState;
 
     private PositionContextMenu positionContextMenu;
+    private HighlightContextMenu highlightContextMenu;
 
     private double x;
     private double y;
@@ -134,18 +137,26 @@ public class MapScreen extends Screen {
         }
         editWaypointModal = new EditWaypointModal(waypoints);
 
-        positionContextMenu = new PositionContextMenu(this.waypoints, newWaypointModal);
+        positionContextMenu = new PositionContextMenu(this.waypoints, newWaypointModal, this::focusNewWaypointModal);
         addRenderableWidget(positionContextMenu);
+
+        highlightContextMenu = new HighlightContextMenu(this.waypoints, newWaypointModal, this::focusNewWaypointModal);
+        addRenderableWidget(highlightContextMenu);
 
         openWaypointButton = new ImageButton(this.width / 2 - 22, 10, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/new.png"), imbg -> {
             if (editWaypointModal.isTargeting()) {
                 return;
             }
-            newWaypointModal.setVisible(!newWaypointModal.isVisible());
             if (newWaypointModal.isVisible()) {
-                editWaypointModal.setVisible(false);
-                editWaypointModal.setWaypoint(null);
+                newWaypointModal.setVisible(false);
+                return;
             }
+            LocalPlayer player = Minecraft.getInstance().player;
+            newWaypointModal.open("", player.getBlockX(), player.getBlockY() + 1, player.getBlockZ());
+            newWaypointModal.setVisible(true);
+            editWaypointModal.setVisible(false);
+            editWaypointModal.setWaypoint(null);
+            focusNewWaypointModal();
         });
         openWaypointButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.newwaypoint.tooltip")));
         addRenderableWidget(openWaypointButton);
@@ -159,6 +170,9 @@ public class MapScreen extends Screen {
 
         addRenderableWidget(newWaypointModal);
         addRenderableWidget(editWaypointModal);
+        if (newWaypointModal.isVisible()) {
+            setFocused(newWaypointModal);
+        }
 
         Identifier toggleWaypointImage;
         if (config.isWaypointRenderingEnabled()) {
@@ -166,7 +180,7 @@ public class MapScreen extends Screen {
         } else {
             toggleWaypointImage = Identifier.fromNamespaceAndPath("civmodern", "gui/waypointoff.png");
         }
-        ImageButton toggleWaypoints = new ImageButton(this.width - 54, 10, 20, 20, toggleWaypointImage, imbg -> {
+        ImageButton toggleWaypoints = new ImageButton(this.width - 78, 10, 20, 20, toggleWaypointImage, imbg -> {
             config.setWaypointRenderingEnabled(!config.isWaypointRenderingEnabled());
             changedConfig = true;
             if (config.isWaypointRenderingEnabled()) {
@@ -184,7 +198,7 @@ public class MapScreen extends Screen {
         } else {
             togglePlayersImage = Identifier.fromNamespaceAndPath("civmodern", "gui/toggleplayers.png");
         }
-        ImageButton togglePlayers = new ImageButton(this.width - 30, 10, 20, 20, togglePlayersImage, imbg -> {
+        ImageButton togglePlayers = new ImageButton(this.width - 54, 10, 20, 20, togglePlayersImage, imbg -> {
             // TODO use world config
             config.setPlayerWaypointsEnabled(!config.isPlayerWaypointsEnabled());
             changedConfig = true;
@@ -197,19 +211,52 @@ public class MapScreen extends Screen {
         togglePlayers.setTooltip(Tooltip.create(Component.translatable("civmodern.map.players.tooltip")));
         addRenderableWidget(togglePlayers);
 
-        toggleNodes = new ImageButton(this.width - 78, 10, 20, 20, nodeOverlayImage(), imbg -> {
-            config.setNodeOverlayEnabled(!config.isNodeOverlayEnabled());
+        toggleNodes = new ImageButton(this.width - 102, 10, 20, 20, nodeOverlayImage(), imbg -> {
+            config.setNodeOverlayMode(config.getNodeOverlayMode().next());
             changedConfig = true;
-            imbg.setImage(nodeOverlayImage());
-            imbg.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+            updateNodeOverlayButton(imbg);
         });
-        toggleNodes.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+        updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
+
+        ImageButton managerButton = new ImageButton(this.width - 126, 10, 20, 20,
+            Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
+            Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
+        });
+        managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.waypointmanager.tooltip")));
+        addRenderableWidget(managerButton);
+
+        ImageButton settingsButton = new ImageButton(this.width - 30, 10, 20, 20,
+            Identifier.fromNamespaceAndPath("civmodern", "gui/settings.png"), imbg -> {
+            Minecraft.getInstance().setScreen(mod.newConfigGui(this));
+        });
+        settingsButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.settings.tooltip")));
+        addRenderableWidget(settingsButton);
+    }
+
+    /**
+     * Deferred: the click that opens the modal also lands on this screen, which then focuses
+     * the clicked widget, overwriting a setFocused done synchronously within the same click.
+     */
+    private void focusNewWaypointModal() {
+        Minecraft.getInstance().execute(() -> {
+            if (newWaypointModal.isVisible()) {
+                setFocused(newWaypointModal);
+                newWaypointModal.focusNameBox();
+            }
+        });
+    }
+
+    /** The icon carries the state: full for ON, ghosted for TRANSLUCENT, struck out for OFF. */
+    private void updateNodeOverlayButton(ImageButton button) {
+        button.setImage(nodeOverlayImage());
+        button.setAlpha(config.getNodeOverlayMode() == NodeOverlayMode.TRANSLUCENT ? 0.5f : 1f);
+        button.setTooltip(Tooltip.create(nodeOverlayTooltip()));
     }
 
     private Identifier nodeOverlayImage() {
         return Identifier.fromNamespaceAndPath("civmodern",
-            config.isNodeOverlayEnabled() ? "gui/nodes.png" : "gui/nodesoff.png");
+            config.getNodeOverlayMode().isVisible() ? "gui/nodes.png" : "gui/nodesoff.png");
     }
 
     /**
@@ -233,7 +280,7 @@ public class MapScreen extends Screen {
      * outright, so a server that does not serve node data draws nothing at all.
      */
     private boolean nodeOverlayActive() {
-        return config.isNodeOverlayEnabled() && nodeCache != null && nodeApi != null && nodeApi.isAvailable();
+        return config.getNodeOverlayMode().isVisible() && nodeCache != null && nodeApi != null && nodeApi.isAvailable();
     }
 
     public void setNewWaypoint(Waypoint waypoint) {
@@ -283,8 +330,8 @@ public class MapScreen extends Screen {
 
         // Node territory sits over the map tiles but under the waypoints and the chevron.
         if (nodeOverlayActive()) {
-            NodeOverlayRenderer.render(guiGraphics, nodeCache, config, this.x, this.y,
-                window.getGuiScaledWidth(), window.getGuiScaledHeight(), scale);
+            NodeOverlayRenderer.render(guiGraphics, nodeCache, config, config.getNodeOverlayMode(), this.x, this.y,
+                window.getGuiScaledWidth(), window.getGuiScaledHeight(), scale, null);
         }
 
         matrices.pushMatrix();
@@ -512,17 +559,19 @@ public class MapScreen extends Screen {
 
         matrices.popMatrix();
 
-        // Set before the widgets render, so hovering a toolbar button still wins the tooltip slot.
+        for (Renderable renderable : ((ScreenAccessor) this).civmodern$getRenderables()) {
+            renderable.render(guiGraphics, mouseX, mouseY, delta);
+        }
+
+        // Set after the widgets render: the frame's first tooltip wins the slot (a later set is
+        // dropped unless the widget is focused), so a hovered toolbar button has claimed it by
+        // now and the node tooltip only fills in when nothing else did.
         if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
-            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible()) {
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
             List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, config, mouseBlockX >> 4, mouseBlockY >> 4);
             if (!lines.isEmpty()) {
                 guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
             }
-        }
-
-        for (Renderable renderable : ((ScreenAccessor) this).civmodern$getRenderables()) {
-            renderable.render(guiGraphics, mouseX, mouseY, delta);
         }
     }
 
@@ -567,6 +616,9 @@ public class MapScreen extends Screen {
             editWaypointModal.setVisible(false);
             editWaypointModal.setWaypoint(null);
             return true;
+        } else if (highlightContextMenu.isVisible() && button == 1) {
+            highlightContextMenu.setVisible(false);
+            return true;
         }
 
         if (boating && button == 1) {
@@ -583,7 +635,13 @@ public class MapScreen extends Screen {
         }
 
         if (hoveredWaypoint != null && button == 0) {
-            if (editWaypointModal.getWaypoint() != hoveredWaypoint) {
+            if (hoveredWaypoint.equals(waypoints.getTarget())) {
+                editWaypointModal.setVisible(false);
+                editWaypointModal.setWaypoint(null);
+                newWaypointModal.setVisible(false);
+                highlightContextMenu.open(hoveredWaypoint, (int) mouseX, (int) mouseY);
+                highlightContextMenu.setVisible(true);
+            } else if (editWaypointModal.getWaypoint() != hoveredWaypoint) {
                 editWaypointModal.setWaypoint(hoveredWaypoint);
                 editWaypointModal.setVisible(true);
                 newWaypointModal.setVisible(false);
@@ -607,13 +665,16 @@ public class MapScreen extends Screen {
         float scale = (float) window.getGuiScale() * zoom;
 
         if (!boating) {
-            if (hoveredWaypoint == null && button == 1 && !positionContextMenu.isVisible()) {
+            if (hoveredWaypoint == null && button == 1 && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
                 Short yLevel = mapCache.getYLevel(this.mouseBlockX, this.mouseBlockY);
                 positionContextMenu.open(this.mouseBlockX, yLevel, this.mouseBlockY, (int) ((this.mouseBlockX - this.x) / scale), (int) ((this.mouseBlockY - this.y + 1) / scale + 1));
                 positionContextMenu.setVisible(true);
                 return true;
             } else if (positionContextMenu.isVisible() && !positionContextMenu.isMouseOver(x, y)) {
                 positionContextMenu.setVisible(false);
+                return true;
+            } else if (highlightContextMenu.isVisible() && !highlightContextMenu.isMouseOver(x, y)) {
+                highlightContextMenu.setVisible(false);
                 return true;
             }
         }
@@ -632,9 +693,6 @@ public class MapScreen extends Screen {
         double mouseWorldY = (mouseY * scale + y);
         hoveredWaypoint = null;
         for (Waypoint waypoint : waypointList) {
-            if (waypoint.equals(waypoints.getTarget())) {
-                continue;
-            }
             if (closest == null) {
                 closest = waypoint;
             } else if (Math.abs(waypoint.x() - mouseWorldX) + Math.abs(waypoint.z() - mouseWorldY) < Math.abs(closest.x() - mouseWorldX) + Math.abs(closest.z() - mouseWorldY)) {
@@ -710,6 +768,11 @@ public class MapScreen extends Screen {
             return true;
         }
 
+        if (highlightContextMenu.isVisible() && !highlightContextMenu.isMouseOver(x, y)) {
+            highlightContextMenu.setVisible(false);
+            return true;
+        }
+
         if (button == 0 || button == 1) {
             double scale = Minecraft.getInstance().getWindow().getGuiScale() * zoom;
             this.x -= changeX * scale;
@@ -760,6 +823,18 @@ public class MapScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        // Esc must close just the open modal, not the map behind it - vanilla Screen would
+        // otherwise treat it as unhandled and close the whole screen.
+        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+            if (newWaypointModal.isVisible()) {
+                newWaypointModal.cancel();
+                return true;
+            }
+            if (editWaypointModal.isVisible()) {
+                editWaypointModal.cancel();
+                return true;
+            }
+        }
         if (this.key.matches(event) && !newWaypointModal.isVisible() && !editWaypointModal.isVisible()) {
             Minecraft.getInstance().setScreen(null);
             return true;

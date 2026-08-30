@@ -292,11 +292,7 @@ public class MapScreen extends Screen {
         Matrix3x2fStack matrices = guiGraphics.pose();
 
         float scale = (float) Minecraft.getInstance().getWindow().getGuiScale() * zoom;
-        // log(base config.getWaypointZoomLogBase()) of how many zoom-out steps we are from
-        // config.getWaypointBaseZoom(), so the shrink eases off the further out you go
-        // instead of halving every single step.
-        float zoomSteps = (float) (Math.log(zoom / config.getWaypointBaseZoom()) / Math.log(config.getWaypointZoomLogBase()));
-        float waypointScale = 1f / (1f + Math.max(0f, zoomSteps));
+        float waypointScale = waypointScale();
         Window window = Minecraft.getInstance().getWindow();
 
         if (!positionContextMenu.isVisible()) {
@@ -694,10 +690,21 @@ public class MapScreen extends Screen {
         return false;
     }
 
+    /**
+     * How much smaller than their native size waypoint icons/labels are currently drawn,
+     * per {@link CivMapConfig#getWaypointBaseZoom()}/{@link CivMapConfig#getWaypointZoomLogBase()}.
+     * Shared by render() (to scale the drawing) and mouseMoved() (to scale the hitbox to match).
+     */
+    private float waypointScale() {
+        float zoomSteps = (float) (Math.log(zoom / config.getWaypointBaseZoom()) / Math.log(config.getWaypointZoomLogBase()));
+        return 1f / (1f + Math.max(0f, zoomSteps));
+    }
+
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
         Window window = Minecraft.getInstance().getWindow();
         float scale = (float) window.getGuiScale() * zoom;
+        float waypointScale = waypointScale();
 
         List<Waypoint> waypointList = waypoints.getWaypoints();
         Waypoint closest = null;
@@ -714,7 +721,8 @@ public class MapScreen extends Screen {
         if (closest != null) {
             double offsetX = (closest.x() + 0.5 - mouseWorldX) / scale;
             double offsetY = (closest.z() + 0.5 - mouseWorldY) / scale;
-            if (Math.abs(offsetX) < 8 && Math.abs(offsetY) < 8) {
+            double hitboxHalfSize = 8 * waypointScale;
+            if (Math.abs(offsetX) < hitboxHalfSize && Math.abs(offsetY) < hitboxHalfSize) {
                 hoveredWaypoint = closest;
             }
         }

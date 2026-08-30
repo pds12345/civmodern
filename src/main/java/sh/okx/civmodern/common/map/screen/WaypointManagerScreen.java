@@ -10,6 +10,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -29,7 +30,8 @@ public class WaypointManagerScreen extends Screen {
 
     private static final int ROW_HEIGHT = 20;
     private static final int TOGGLE_COLUMN = 18;
-    private static final int TOGGLE_SIZE = 12;
+    private static final int TOGGLE_SIZE = 16;
+    private static final Identifier TOGGLE_TEXTURE = Identifier.fromNamespaceAndPath("civmodern", "gui/visibility.png");
     private static final int ICON_COLUMN = 26;
     private static final int X_COLUMN = 52;
     private static final int Y_COLUMN = 44;
@@ -215,13 +217,13 @@ public class WaypointManagerScreen extends Screen {
             int textY = rowY + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
             boolean visible = waypoint.visible();
 
-            // The hide/show toggle: an outlined box, filled solid while visible and hollow
-            // (dark centre) while hidden.
+            // The hide/show toggle: the same eye icon as the edit modal's button, scaled down
+            // from its native 20x20 to the same height as the waypoint diamond beside it.
             int toggleLeft = left + 3;
             int toggleTop = rowY + (ROW_HEIGHT - TOGGLE_SIZE) / 2;
-            guiGraphics.fill(toggleLeft, toggleTop, toggleLeft + TOGGLE_SIZE, toggleTop + TOGGLE_SIZE, HEADER_COLOUR);
-            guiGraphics.fill(toggleLeft + 1, toggleTop + 1, toggleLeft + TOGGLE_SIZE - 1, toggleTop + TOGGLE_SIZE - 1,
-                visible ? 0xFFFFFFFF : 0xFF222222);
+            int toggleV = visible ? 0 : 20;
+            guiGraphics.blit(RenderPipelines.GUI_TEXTURED, TOGGLE_TEXTURE, toggleLeft, toggleTop, 0, toggleV,
+                TOGGLE_SIZE, TOGGLE_SIZE, 20, 20, 20, 40, -1);
 
             // The very diamond the map draws: same texture, tinted with the waypoint's colour.
             int iconTint = (visible ? 0xFF000000 : 0x66000000) | waypoint.colour();

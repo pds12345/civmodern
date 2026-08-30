@@ -22,6 +22,7 @@ import sh.okx.civmodern.common.gui.widget.ColourTextEditBox;
 import sh.okx.civmodern.common.gui.widget.HsbColourPicker;
 import net.minecraft.client.input.MouseButtonEvent;
 import sh.okx.civmodern.common.gui.widget.ImageButton;
+import sh.okx.civmodern.common.gui.widget.VisibilityToggleButton;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 
@@ -52,6 +53,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
     private boolean targeting = false;
     private boolean coordsPickerEnabled = true;
     private ImageButton highlightButton;
+    private VisibilityToggleButton visibilityButton;
 
     public EditWaypointModal(Waypoints waypoints) {
         super(OwoUIAdapter.createWithoutScreen(Minecraft.getInstance().getWindow().getGuiScaledWidth() / 2 - MODAL_WIDTH / 2, 48, MODAL_WIDTH, MODAL_HEIGHT, UIContainers::verticalFlow));
@@ -128,6 +130,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             updateHighlightButton();
         });
         updateHighlightButton();
+        visibilityButton = new VisibilityToggleButton(0, 0, 20, 20, () -> this.waypoint.visible(), btn -> toggleVisibility());
         ImageButton moveButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/move.png"), imbg -> {
             this.visible = false;
             this.targeting = true;
@@ -163,7 +166,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             )
             .child(
                 UIContainers.horizontalFlow(Sizing.fill(), Sizing.content())
-                    .child(buildButtonsRow(highlightButton, moveButton, copyButton, deleteButton))
+                    .child(buildButtonsRow(highlightButton, visibilityButton, moveButton, copyButton, deleteButton))
                     .margins(Insets.horizontal(4).withTop(4))
             )
             .child(
@@ -194,9 +197,10 @@ public class EditWaypointModal extends Modal<FlowLayout> {
     }
 
     /** The action buttons, on their own row between the coordinates and Done/Cancel/colour. */
-    private FlowLayout buildButtonsRow(ImageButton highlightButton, ImageButton moveButton, ImageButton copyButton, ImageButton deleteButton) {
+    private FlowLayout buildButtonsRow(ImageButton highlightButton, VisibilityToggleButton visibilityButton, ImageButton moveButton, ImageButton copyButton, ImageButton deleteButton) {
         FlowLayout row = UIContainers.horizontalFlow(Sizing.content(), Sizing.content())
-            .child(highlightButton.margins(Insets.right(3)));
+            .child(highlightButton.margins(Insets.right(3)))
+            .child(visibilityButton.margins(Insets.right(3)));
         if (coordsPickerEnabled) {
             row.child(moveButton.margins(Insets.right(3)));
         }
@@ -218,6 +222,12 @@ public class EditWaypointModal extends Modal<FlowLayout> {
      */
     private void updateHighlightButton() {
         highlightButton.setToggled(isHighlighted());
+    }
+
+    private void toggleVisibility() {
+        boolean newVisible = !this.waypoint.visible();
+        this.waypoints.setVisible(this.waypoint, newVisible);
+        this.waypoint = new Waypoint(this.waypoint.name(), this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), this.waypoint.icon(), this.waypoint.colour(), newVisible);
     }
 
     public String getName() {

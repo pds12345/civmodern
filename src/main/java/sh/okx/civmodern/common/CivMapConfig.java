@@ -51,6 +51,8 @@ public class CivMapConfig {
     private boolean waypointRenderingEnabled;
     private int waypointRenderDistance;
     private float minimapZoom;
+    private float waypointBaseZoom;
+    private float waypointZoomLogBase;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
@@ -100,6 +102,10 @@ public class CivMapConfig {
         this.waypointRenderingEnabled = Boolean.parseBoolean(properties.getProperty("waypoint_rendering_enabled", "true"));
         this.waypointRenderDistance = Integer.parseInt(properties.getProperty("waypoint_render_distance", "2000"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
+        // Zoom level (blocks per pixel) treated as "full size" for waypoint icons/labels, and the
+        // log base controlling how gently they shrink as the map zooms out past it.
+        this.waypointBaseZoom = Float.parseFloat(properties.getProperty("waypoint_base_zoom", "0.03125"));
+        this.waypointZoomLogBase = Float.parseFloat(properties.getProperty("waypoint_zoom_log_base", "3"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
@@ -164,6 +170,8 @@ public class CivMapConfig {
             properties.setProperty("waypoint_rendering_enabled", Boolean.toString(waypointRenderingEnabled));
             properties.setProperty("waypoint_render_distance", Integer.toString(waypointRenderDistance));
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
+            properties.setProperty("waypoint_base_zoom", Float.toString(waypointBaseZoom));
+            properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
@@ -449,6 +457,22 @@ public class CivMapConfig {
 
     public void setMinimapZoom(float minimapZoom) {
         this.minimapZoom = minimapZoom;
+    }
+
+    public float getWaypointBaseZoom() {
+        return waypointBaseZoom;
+    }
+
+    public void setWaypointBaseZoom(float waypointBaseZoom) {
+        this.waypointBaseZoom = waypointBaseZoom;
+    }
+
+    public float getWaypointZoomLogBase() {
+        return waypointZoomLogBase;
+    }
+
+    public void setWaypointZoomLogBase(float waypointZoomLogBase) {
+        this.waypointZoomLogBase = waypointZoomLogBase;
     }
 
     public boolean isCratesAreCompacted() {

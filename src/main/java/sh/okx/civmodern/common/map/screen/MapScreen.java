@@ -292,6 +292,11 @@ public class MapScreen extends Screen {
         Matrix3x2fStack matrices = guiGraphics.pose();
 
         float scale = (float) Minecraft.getInstance().getWindow().getGuiScale() * zoom;
+        // log(base config.getWaypointZoomLogBase()) of how many zoom-out steps we are from
+        // config.getWaypointBaseZoom(), so the shrink eases off the further out you go
+        // instead of halving every single step.
+        float zoomSteps = (float) (Math.log(zoom / config.getWaypointBaseZoom()) / Math.log(config.getWaypointZoomLogBase()));
+        float waypointScale = 1f / (1f + Math.max(0f, zoomSteps));
         Window window = Minecraft.getInstance().getWindow();
 
         if (!positionContextMenu.isVisible()) {
@@ -353,6 +358,7 @@ public class MapScreen extends Screen {
                     double x = waypoint.x() + 0.5;
                     double z = waypoint.z() + 0.5;
                     matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                    matrices.scale(waypointScale, waypointScale);
 
                     waypoint.render2D(guiGraphics);
                     matrices.popMatrix();
@@ -366,6 +372,7 @@ public class MapScreen extends Screen {
                     double x = waypoint.x() + 0.5;
                     double z = waypoint.z() + 0.5;
                     matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                    matrices.scale(waypointScale, waypointScale);
 
                     Font font = Minecraft.getInstance().font;
 
@@ -391,6 +398,7 @@ public class MapScreen extends Screen {
                 double x = waypoint.x() + 0.5;
                 double z = waypoint.z() + 0.5;
                 matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                matrices.scale(waypointScale, waypointScale);
                 waypoint.render(guiGraphics, colour);
                 matrices.scale(0.8f, 0.8f);
 
@@ -414,6 +422,7 @@ public class MapScreen extends Screen {
         if (targeting || newWaypointModal.isTargeting()) {
             matrices.pushMatrix();
             matrices.translate(mouseX, mouseY);
+            matrices.scale(waypointScale, waypointScale);
 
             Waypoint targetWaypoint = new Waypoint("", 0, 0, 0, targeting ? "target" : "waypoint", 0xFF0000);
             int transparency = newWaypointModal.isTargeting() ? 0x7F : 0xFF;
@@ -429,6 +438,7 @@ public class MapScreen extends Screen {
 
                 matrices.pushMatrix();
                 matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                matrices.scale(waypointScale, waypointScale);
 
                 Waypoint targetWaypoint = new Waypoint("", 0, 0, 0, "waypoint", newWaypointModal.getPreviewColour());
                 targetWaypoint.render2D(guiGraphics);
@@ -443,6 +453,7 @@ public class MapScreen extends Screen {
             double x = hoveredWaypoint.x() + 0.5;
             double z = hoveredWaypoint.z() + 0.5;
             matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+            matrices.scale(waypointScale, waypointScale);
 
             guiGraphics.blit(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath("civmodern", "map/focus.png"), -8, -8, 0, 0, 16, 16, 16, 16, -1);
 
@@ -467,6 +478,7 @@ public class MapScreen extends Screen {
                 double z = editWaypointModal.getZ() + 0.5;
                 matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
             }
+            matrices.scale(waypointScale, waypointScale);
 
             Waypoint targetWaypoint = new Waypoint("", 0, 0, 0, editWaypointModal.getWaypoint().icon(), editWaypointModal.getPreviewColour());
             if (editWaypointModal.getPreviewColour() != editWaypointModal.getColour()) {

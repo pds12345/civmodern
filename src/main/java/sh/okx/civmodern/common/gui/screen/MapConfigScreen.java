@@ -143,6 +143,13 @@ public class MapConfigScreen extends AbstractConfigScreen {
             }
         }));
         offset += 24;
+        int waypointScalingLabelY = offset;
+        offset += 12;
+        addNumberInput("Waypoint base zoom", left, waypointScalingLabelY, offset, 0.001f, 4f,
+            config::getWaypointBaseZoom, config::setWaypointBaseZoom);
+        addNumberInput("Waypoint zoom log base", right, waypointScalingLabelY, offset, 1.01f, 20f,
+            config::getWaypointZoomLogBase, config::setWaypointZoomLogBase);
+        offset += 24;
         chevronColourY = offset;
 
         offset += 12;
@@ -158,6 +165,30 @@ public class MapConfigScreen extends AbstractConfigScreen {
             config.save();
             Minecraft.getInstance().setScreen(parent);
         }).pos(centre, getFooterY(offset)).size(150, 20).build());
+    }
+
+    private void addNumberInput(String title, int x, int labelY, int y, float min, float max, Supplier<Float> valueGet, Consumer<Float> valueSet) {
+        addRenderableOnly(new TextRenderable.CentreAligned(
+            this.font,
+            x + 75,
+            labelY,
+            Component.literal(title)
+        ));
+        EditBox widget = new EditBox(font, x, y, 150, 20, Component.empty());
+        widget.setValue(String.valueOf(valueGet.get()));
+        widget.setMaxLength(16);
+        Pattern pattern = Pattern.compile("^[0-9]*\\.?[0-9]*$");
+        widget.setFilter(string -> pattern.matcher(string).matches());
+        widget.setResponder(val -> {
+            try {
+                float parsed = Float.parseFloat(val);
+                if (parsed >= min && parsed <= max) {
+                    valueSet.accept(parsed);
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        });
+        addRenderableWidget(widget);
     }
 
     private HsbColourPicker addColourPicker(String title, int x, int y, int defaultColour, Supplier<Integer> colourGet, Consumer<Integer> colourSet, Consumer<Integer> preview) {

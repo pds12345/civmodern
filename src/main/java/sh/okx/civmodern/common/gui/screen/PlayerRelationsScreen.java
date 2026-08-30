@@ -3,6 +3,7 @@ package sh.okx.civmodern.common.gui.screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -17,29 +18,45 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Three lists (friendly/neutral/hostile) of players, each rendered as the same kind of scrollable
- * table {@link sh.okx.civmodern.common.map.screen.WaypointManagerScreen} uses for waypoints.
- * Clicking a row removes that player from the open list; "+ Add player" adds one to it.
+ * Four pages of players - All, Friendly, Neutral, Hostile - each rendered as the same kind of
+ * scrollable table {@link sh.okx.civmodern.common.map.screen.WaypointManagerScreen} uses for
+ * waypoints. Every row has three fixed columns (Friendly/Neutral/Hostile, left to right) with a
+ * "move to" button in whichever two don't match the player's current relation, plus a delete
+ * button; "+ Add player" adds a new entry to the open list. A player's name is coloured by their
+ * relation on every page, All included.
  */
 public class PlayerRelationsScreen extends Screen {
 
     private static final int ROW_HEIGHT = 20;
+    private static final int BUTTON_HEIGHT = 16;
+    private static final int MOVE_BUTTON_WIDTH = 56;
+    private static final int DELETE_BUTTON_WIDTH = 20;
+    private static final int BUTTON_GAP = 4;
+    private static final int RIGHT_MARGIN = 6;
 
     private static final int HEADER_COLOUR = 0xFFAAAAAA;
     private static final int NAME_COLOUR = 0xFFFFFFFF;
     private static final int STRIPE_COLOUR = 0x14FFFFFF;
     private static final int HOVER_COLOUR = 0x33FFFFFF;
-    private static final int DELETE_HINT_COLOUR = 0xFFFF5555;
+    private static final int BUTTON_COLOUR = 0x22FFFFFF;
+    private static final int BUTTON_HOVER_COLOUR = 0x44FFFFFF;
+    private static final int DELETE_COLOUR = 0xFFFF5555;
+
+    /** Left-to-right column order: Friendly, Neutral, Hostile. */
+    private static final PlayerRelation[] COLUMNS = {PlayerRelation.FRIENDLY, PlayerRelation.NEUTRAL, PlayerRelation.HOSTILE};
 
     private final Screen parent;
     private final PlayerRelations relations;
 
-    private PlayerRelation selected = PlayerRelation.FRIENDLY;
+    /** null means the All page. */
+    private PlayerRelation selected = null;
     private double scroll;
 
+    private Button allButton;
     private Button friendlyButton;
     private Button neutralButton;
     private Button hostileButton;
+    private Button addButton;
 
     public PlayerRelationsScreen(Screen parent, PlayerRelations relations) {
         super(Component.translatable("civmodern.screen.playerrelations.title"));
@@ -49,31 +66,38 @@ public class PlayerRelationsScreen extends Screen {
 
     @Override
     protected void init() {
-        int tabWidth = 110;
+        int tabWidth = 74;
         int gap = 4;
         int addGap = 16;
-        int addWidth = 110;
-        int totalWidth = tabWidth * 3 + gap * 2 + addGap + addWidth;
+        int addWidth = 100;
+        int totalWidth = tabWidth * 4 + gap * 3 + addGap + addWidth;
         int left = (this.width - totalWidth) / 2;
         int y = 24;
 
+        allButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.all"),
+                button -> select(null))
+            .pos(left, y).size(tabWidth, 20).build();
         friendlyButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.friendly"),
                 button -> select(PlayerRelation.FRIENDLY))
-            .pos(left, y).size(tabWidth, 20).build();
+            .pos(left + tabWidth + gap, y).size(tabWidth, 20).build();
         neutralButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.neutral"),
                 button -> select(PlayerRelation.NEUTRAL))
-            .pos(left + tabWidth + gap, y).size(tabWidth, 20).build();
+            .pos(left + (tabWidth + gap) * 2, y).size(tabWidth, 20).build();
         hostileButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.hostile"),
                 button -> select(PlayerRelation.HOSTILE))
-            .pos(left + (tabWidth + gap) * 2, y).size(tabWidth, 20).build();
+            .pos(left + (tabWidth + gap) * 3, y).size(tabWidth, 20).build();
+        addRenderableWidget(allButton);
         addRenderableWidget(friendlyButton);
         addRenderableWidget(neutralButton);
         addRenderableWidget(hostileButton);
-        updateTabButtons();
 
-        addRenderableWidget(Button.builder(Component.translatable("civmodern.screen.playerrelations.add"),
+        addButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.add"),
                 button -> Minecraft.getInstance().setScreen(new AddPlayerScreen(this, relations, selected)))
-            .pos(left + tabWidth * 3 + gap * 2 + addGap, y).size(addWidth, 20).build());
+            .pos(left + tabWidth * 4 + gap * 3 + addGap, y).size(addWidth, 20).build();
+        addButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.playerrelations.add.needslist")));
+        addRenderableWidget(addButton);
+
+        updateTabButtons();
     }
 
     private void select(PlayerRelation category) {
@@ -83,13 +107,23 @@ public class PlayerRelationsScreen extends Screen {
     }
 
     private void updateTabButtons() {
+        allButton.active = selected != null;
         friendlyButton.active = selected != PlayerRelation.FRIENDLY;
         neutralButton.active = selected != PlayerRelation.NEUTRAL;
         hostileButton.active = selected != PlayerRelation.HOSTILE;
+        // "Add player" needs a specific list to add to - not meaningful from the All page.
+        addButton.active = selected != null;
     }
 
     private List<PlayerRelationEntry> sortedEntries() {
-        List<PlayerRelationEntry> list = new ArrayList<>(relations.getByRelation(selected));
+        List<PlayerRelationEntry> list = new ArrayList<>();
+        if (selected == null) {
+            for (PlayerRelation relation : PlayerRelation.values()) {
+                list.addAll(relations.getByRelation(relation));
+            }
+        } else {
+            list.addAll(relations.getByRelation(selected));
+        }
         list.sort(Comparator.comparing(PlayerRelationEntry::username, String.CASE_INSENSITIVE_ORDER));
         return list;
     }
@@ -97,7 +131,7 @@ public class PlayerRelationsScreen extends Screen {
     // ------------------------------------------------------------- geometry
 
     private int tableWidth() {
-        return Math.min(300, this.width - 40);
+        return Math.min(380, this.width - 40);
     }
 
     private int tableLeft() {
@@ -114,6 +148,16 @@ public class PlayerRelationsScreen extends Screen {
 
     private double maxScroll(int rowCount) {
         return Math.max(0, rowCount * ROW_HEIGHT - (rowsBottom() - rowsTop()));
+    }
+
+    private int deleteLeft(int right) {
+        return right - RIGHT_MARGIN - DELETE_BUTTON_WIDTH;
+    }
+
+    /** Left edge of the Friendly/Neutral/Hostile column (index 0/1/2 in {@link #COLUMNS}). */
+    private int columnLeft(int right, int column) {
+        int columnsFromRight = COLUMNS.length - 1 - column;
+        return deleteLeft(right) - BUTTON_GAP - (MOVE_BUTTON_WIDTH + BUTTON_GAP) * columnsFromRight - MOVE_BUTTON_WIDTH;
     }
 
     // ------------------------------------------------------------- rendering
@@ -139,7 +183,10 @@ public class PlayerRelationsScreen extends Screen {
             return;
         }
 
-        int hovered = rowAt(mouseX, mouseY);
+        int deleteLeft = deleteLeft(right);
+        int nameRight = columnLeft(right, 0) - 8;
+
+        int hoveredRow = rowAt(mouseX, mouseY);
 
         guiGraphics.enableScissor(left, top, right, bottom);
         for (int i = 0; i < list.size(); i++) {
@@ -147,7 +194,7 @@ public class PlayerRelationsScreen extends Screen {
             if (rowY + ROW_HEIGHT <= top || rowY >= bottom) {
                 continue;
             }
-            if (i == hovered) {
+            if (i == hoveredRow) {
                 guiGraphics.fill(left, rowY, right, rowY + ROW_HEIGHT, HOVER_COLOUR);
             } else if (i % 2 == 1) {
                 guiGraphics.fill(left, rowY, right, rowY + ROW_HEIGHT, STRIPE_COLOUR);
@@ -155,10 +202,25 @@ public class PlayerRelationsScreen extends Screen {
 
             PlayerRelationEntry entry = list.get(i);
             int textY = rowY + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
+            int buttonY = rowY + (ROW_HEIGHT - BUTTON_HEIGHT) / 2;
+            boolean rowHovered = i == hoveredRow;
 
-            String name = font.plainSubstrByWidth(entry.username(), right - left - 12 - 16);
-            guiGraphics.drawString(font, name, left + 6, textY, NAME_COLOUR);
-            guiGraphics.drawString(font, "X", right - 12, textY, DELETE_HINT_COLOUR);
+            String name = font.plainSubstrByWidth(entry.username(), nameRight - left - 6);
+            guiGraphics.drawString(font, name, left + 6, textY, entry.relation().colour());
+
+            for (int column = 0; column < COLUMNS.length; column++) {
+                PlayerRelation columnRelation = COLUMNS[column];
+                if (columnRelation == entry.relation()) {
+                    continue; // this player's current list - nothing to move them to here
+                }
+                int columnX = columnLeft(right, column);
+                drawRowButton(guiGraphics, columnX, buttonY, MOVE_BUTTON_WIDTH,
+                    Component.translatable("civmodern.screen.playerrelations." + columnRelation.toDatabaseKey()),
+                    rowHovered && mouseX >= columnX && mouseX < columnX + MOVE_BUTTON_WIDTH, NAME_COLOUR);
+            }
+            drawRowButton(guiGraphics, deleteLeft, buttonY, DELETE_BUTTON_WIDTH,
+                Component.literal("X"),
+                rowHovered && mouseX >= deleteLeft && mouseX < deleteLeft + DELETE_BUTTON_WIDTH, DELETE_COLOUR);
         }
         guiGraphics.disableScissor();
 
@@ -170,6 +232,13 @@ public class PlayerRelationsScreen extends Screen {
             guiGraphics.fill(right - 2, top, right, bottom, STRIPE_COLOUR);
             guiGraphics.fill(right - 2, barY, right, barY + barHeight, 0x88FFFFFF);
         }
+    }
+
+    private void drawRowButton(GuiGraphics guiGraphics, int x, int y, int width, Component label, boolean hovered, int textColour) {
+        guiGraphics.fill(x, y, x + width, y + BUTTON_HEIGHT, hovered ? BUTTON_HOVER_COLOUR : BUTTON_COLOUR);
+        int textX = x + (width - font.width(label)) / 2;
+        int textY = y + (BUTTON_HEIGHT - font.lineHeight) / 2 + 1;
+        guiGraphics.drawString(font, label, textX, textY, textColour);
     }
 
     /** @return the row index under the mouse, or -1 when the mouse is outside the table. */
@@ -196,8 +265,30 @@ public class PlayerRelationsScreen extends Screen {
         if (row < 0 || row >= list.size()) {
             return false;
         }
-        relations.remove(list.get(row).username());
-        return true;
+
+        int right = tableLeft() + tableWidth();
+        double mouseX = event.x();
+        PlayerRelationEntry entry = list.get(row);
+
+        int deleteLeft = deleteLeft(right);
+        if (mouseX >= deleteLeft && mouseX < deleteLeft + DELETE_BUTTON_WIDTH) {
+            relations.remove(entry.username());
+            return true;
+        }
+
+        for (int column = 0; column < COLUMNS.length; column++) {
+            PlayerRelation columnRelation = COLUMNS[column];
+            if (columnRelation == entry.relation()) {
+                continue;
+            }
+            int columnX = columnLeft(right, column);
+            if (mouseX >= columnX && mouseX < columnX + MOVE_BUTTON_WIDTH) {
+                relations.setRelation(entry.username(), columnRelation);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override

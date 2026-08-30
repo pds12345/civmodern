@@ -14,6 +14,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
+import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.gui.Alignment;
@@ -25,6 +26,7 @@ import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.gui.widget.TextRenderable;
 import sh.okx.civmodern.common.gui.widget.ToggleButton;
 import sh.okx.civmodern.common.mixins.ScreenAccessor;
+import sh.okx.civmodern.common.radar.PlayerRelations;
 
 final class RadarConfigScreen extends AbstractConfigScreen {
     public static final Identifier ROLLBACK_ICON = Identifier.tryBuild("civmodern", "gui/rollback.png");
@@ -356,7 +358,22 @@ final class RadarConfigScreen extends AbstractConfigScreen {
                 .build());
         offsetY += Button.DEFAULT_HEIGHT + 4;
 
-        offsetY += 30 + 2;
+        PlayerRelations playerRelations = AbstractCivModernMod.getInstance().getWorldListener().getPlayerRelations();
+        Button playerRelationsButton = Button.builder(
+                Component.translatable("civmodern.screen.radar.playerrelations"),
+                (button) -> Minecraft.getInstance().setScreen(new PlayerRelationsScreen(this, playerRelations))
+            )
+            .pos(this.centreX - (Button.DEFAULT_WIDTH / 2), offsetY)
+            .build();
+        // Per-world storage, same as the waypoint manager: nothing to manage from the title screen.
+        playerRelationsButton.active = playerRelations != null;
+        if (playerRelations == null) {
+            playerRelationsButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
+        }
+        addRenderableWidget(playerRelationsButton);
+        offsetY += Button.DEFAULT_HEIGHT + 4;
+
+        offsetY += 6;
 
         addRenderableWidget(
             Button

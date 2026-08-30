@@ -12,6 +12,7 @@
     "InventoryMixin",
     "ItemStackMixin",
     "KeyMappingAccessor",
+    "PlayerNameTagMixin",
     "RespawnMixin",
     "ScreenAccessor",
     "StorageSourceAccessor",

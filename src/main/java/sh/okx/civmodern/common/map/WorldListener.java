@@ -30,6 +30,7 @@ import sh.okx.civmodern.common.map.screen.ImportAvailable;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
+import sh.okx.civmodern.common.radar.PlayerRelations;
 import sh.okx.civmodern.common.mixins.StorageSourceAccessor;
 
 import java.io.File;
@@ -47,6 +48,7 @@ public class WorldListener {
     private MapFolder file;
     private Minimap minimap;
     private Waypoints waypoints;
+    private PlayerRelations playerRelations;
     private Thread converter = null;
 
     private long seed = -1;
@@ -90,7 +92,8 @@ public class WorldListener {
         String dimension = level.dimension().identifier().getPath();
 
         Path civmapFolder = Minecraft.getInstance().gameDirectory.toPath().resolve("civmap");
-        File mapDirectory = civmapFolder.resolve(type).resolve(name.replace(":", "_")).resolve(dimension).resolve(String.valueOf(seed)).toFile();
+        Path serverDirectory = civmapFolder.resolve(type).resolve(name.replace(":", "_"));
+        File mapDirectory = serverDirectory.resolve(dimension).resolve(String.valueOf(seed)).toFile();
 
         // attempt to migrate from old map folder structure
         String oldType = type.equals("sp") ? "c" : "s";
@@ -124,6 +127,9 @@ public class WorldListener {
         this.file = new MapFolder(mapDirectory);
         this.waypoints = new Waypoints(this.file.getConnection());
         this.playerWaypoints = new PlayerWaypoints();
+        // One directory above the dimension/seed split used for map data: hostility isn't tied
+        // to a location, so it should survive a portal or respawn moving the player elsewhere.
+        this.playerRelations = new PlayerRelations(serverDirectory.toFile());
 
         ArrayList<String> importableMapMods = new ArrayList<>();
 
@@ -220,6 +226,10 @@ public class WorldListener {
         }
         this.playerWaypoints = null;
         this.waypoints = null;
+        if (this.playerRelations != null) {
+            this.playerRelations.close();
+        }
+        this.playerRelations = null;
         if (this.file != null) {
             this.file.close();
         }
@@ -304,5 +314,9 @@ public class WorldListener {
 
     public PlayerWaypoints getPlayerWaypoints() {
         return this.playerWaypoints;
+    }
+
+    public PlayerRelations getPlayerRelations() {
+        return this.playerRelations;
     }
 }

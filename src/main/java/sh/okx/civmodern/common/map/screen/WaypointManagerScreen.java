@@ -1,10 +1,13 @@
 package sh.okx.civmodern.common.map.screen;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -18,8 +21,9 @@ import java.util.List;
 
 /**
  * Every waypoint in one scrollable table — name, position, and the coloured diamond the map
- * draws — sorted by name. Clicking a row opens the same edit modal the map screen uses, and
- * the table is re-read from {@link Waypoints} every frame, so edits and deletes show at once.
+ * draws — sorted alphabetically or by distance from the player, toggled with the buttons above
+ * the table. Clicking a row opens the same edit modal the map screen uses, and the table is
+ * re-read from {@link Waypoints} every frame, so edits and deletes show at once.
  */
 public class WaypointManagerScreen extends Screen {
 
@@ -35,11 +39,25 @@ public class WaypointManagerScreen extends Screen {
     private static final int STRIPE_COLOUR = 0x14FFFFFF;
     private static final int HOVER_COLOUR = 0x33FFFFFF;
 
+    private static final int SORT_BUTTON_Y = 24;
+    private static final int SORT_BUTTON_HEIGHT = 20;
+    private static final int HEADER_ROW_Y = 56;
+
+    private enum SortMode {
+        ALPHA, DISTANCE
+    }
+
     private final Screen parent;
     private final Waypoints waypoints;
 
     private EditWaypointModal editModal;
     private double scroll;
+
+    private SortMode sortMode = SortMode.ALPHA;
+    private boolean alphaAscending = true;
+    private boolean distanceAscending = true;
+    private Button distanceButton;
+    private Button alphaButton;
 
     public WaypointManagerScreen(Screen parent, Waypoints waypoints) {
         super(Component.translatable("civmodern.screen.waypoints.title"));
@@ -53,15 +71,66 @@ public class WaypointManagerScreen extends Screen {
         // There is no map behind this screen to pick coordinates from.
         editModal.setCoordsPickerEnabled(false);
         addRenderableWidget(editModal);
+
+        int buttonWidth = (tableWidth() - 4) / 2;
+        int left = tableLeft();
+        distanceButton = Button.builder(Component.empty(), button -> {
+            if (sortMode == SortMode.DISTANCE) {
+                distanceAscending = !distanceAscending;
+            } else {
+                sortMode = SortMode.DISTANCE;
+            }
+            updateSortButtons();
+        }).pos(left, SORT_BUTTON_Y).size(buttonWidth, SORT_BUTTON_HEIGHT).build();
+        addRenderableWidget(distanceButton);
+
+        alphaButton = Button.builder(Component.empty(), button -> {
+            if (sortMode == SortMode.ALPHA) {
+                alphaAscending = !alphaAscending;
+            } else {
+                sortMode = SortMode.ALPHA;
+            }
+            updateSortButtons();
+        }).pos(left + buttonWidth + 4, SORT_BUTTON_Y).size(buttonWidth, SORT_BUTTON_HEIGHT).build();
+        addRenderableWidget(alphaButton);
+
+        updateSortButtons();
+    }
+
+    private void updateSortButtons() {
+        distanceButton.setMessage(sortButtonLabel("Distance", sortMode == SortMode.DISTANCE, distanceAscending));
+        alphaButton.setMessage(sortButtonLabel("Alpha", sortMode == SortMode.ALPHA, alphaAscending));
+    }
+
+    private static Component sortButtonLabel(String title, boolean active, boolean ascending) {
+        Component text = Component.literal(title + " " + (ascending ? "▲" : "▼"));
+        return active ? text.copy().withStyle(ChatFormatting.YELLOW) : text;
     }
 
     private List<Waypoint> sortedWaypoints() {
         List<Waypoint> list = new ArrayList<>(waypoints.getWaypoints());
-        list.sort(Comparator.comparing(Waypoint::name, String.CASE_INSENSITIVE_ORDER)
-            .thenComparing(Waypoint::x)
-            .thenComparing(Waypoint::z)
-            .thenComparing(Waypoint::y));
+        if (sortMode == SortMode.DISTANCE) {
+            LocalPlayer player = Minecraft.getInstance().player;
+            double px = player == null ? 0 : player.getX();
+            double py = player == null ? 0 : player.getY();
+            double pz = player == null ? 0 : player.getZ();
+            Comparator<Waypoint> comparator = Comparator.comparingDouble(w -> distanceSq(w, px, py, pz));
+            list.sort(distanceAscending ? comparator : comparator.reversed());
+        } else {
+            Comparator<Waypoint> comparator = Comparator.comparing(Waypoint::name, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(Waypoint::x)
+                .thenComparing(Waypoint::z)
+                .thenComparing(Waypoint::y);
+            list.sort(alphaAscending ? comparator : comparator.reversed());
+        }
         return list;
+    }
+
+    private static double distanceSq(Waypoint waypoint, double px, double py, double pz) {
+        double dx = waypoint.x() + 0.5 - px;
+        double dy = waypoint.y() - py;
+        double dz = waypoint.z() + 0.5 - pz;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     // ------------------------------------------------------------- geometry
@@ -75,7 +144,7 @@ public class WaypointManagerScreen extends Screen {
     }
 
     private int rowsTop() {
-        return 44;
+        return 70;
     }
 
     private int rowsBottom() {
@@ -112,10 +181,10 @@ public class WaypointManagerScreen extends Screen {
         int nameLeft = left + ICON_COLUMN;
         int nameRight = xRight - X_COLUMN;
 
-        guiGraphics.drawString(font, "Name", nameLeft, 30, HEADER_COLOUR);
-        guiGraphics.drawString(font, "X", xRight - font.width("X"), 30, HEADER_COLOUR);
-        guiGraphics.drawString(font, "Y", yRight - font.width("Y"), 30, HEADER_COLOUR);
-        guiGraphics.drawString(font, "Z", zRight - font.width("Z"), 30, HEADER_COLOUR);
+        guiGraphics.drawString(font, "Name", nameLeft, HEADER_ROW_Y, HEADER_COLOUR);
+        guiGraphics.drawString(font, "X", xRight - font.width("X"), HEADER_ROW_Y, HEADER_COLOUR);
+        guiGraphics.drawString(font, "Y", yRight - font.width("Y"), HEADER_ROW_Y, HEADER_COLOUR);
+        guiGraphics.drawString(font, "Z", zRight - font.width("Z"), HEADER_ROW_Y, HEADER_COLOUR);
         guiGraphics.fill(left, top - 3, tableRight, top - 2, HEADER_COLOUR);
 
         if (list.isEmpty()) {

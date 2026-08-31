@@ -18,18 +18,18 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Four pages of players - All, Friendly, Neutral, Hostile - each rendered as the same kind of
- * scrollable table {@link sh.okx.civmodern.common.map.screen.WaypointManagerScreen} uses for
- * waypoints. Every row has three fixed columns (Friendly/Neutral/Hostile, left to right) with a
- * "move to" button in whichever two don't match the player's current relation, plus a delete
- * button; "+ Add player" adds a new entry to the open list. A player's name is coloured by their
- * relation on every page, All included.
+ * Six pages of players - All, Friendly, Cordial, Neutral, Suspicious, Hostile - each rendered as
+ * the same kind of scrollable table {@link sh.okx.civmodern.common.map.screen.WaypointManagerScreen}
+ * uses for waypoints. Every row has five fixed columns (Friendly/Cordial/Neutral/Suspicious/Hostile,
+ * left to right) with a single-letter "move to" button in whichever four don't match the player's
+ * current relation, plus a delete button; "+ Add player" adds a new entry to the open list. A
+ * player's name is coloured by their relation on every page, All included.
  */
 public class PlayerRelationsScreen extends Screen {
 
     private static final int ROW_HEIGHT = 20;
     private static final int BUTTON_HEIGHT = 16;
-    private static final int MOVE_BUTTON_WIDTH = 56;
+    private static final int MOVE_BUTTON_WIDTH = 20;
     private static final int DELETE_BUTTON_WIDTH = 20;
     private static final int BUTTON_GAP = 4;
     private static final int RIGHT_MARGIN = 6;
@@ -42,8 +42,10 @@ public class PlayerRelationsScreen extends Screen {
     private static final int BUTTON_HOVER_COLOUR = 0x44FFFFFF;
     private static final int DELETE_COLOUR = 0xFFFF5555;
 
-    /** Left-to-right column order: Friendly, Neutral, Hostile. */
-    private static final PlayerRelation[] COLUMNS = {PlayerRelation.FRIENDLY, PlayerRelation.NEUTRAL, PlayerRelation.HOSTILE};
+    /** Left-to-right column order: Friendly, Cordial, Neutral, Suspicious, Hostile. */
+    private static final PlayerRelation[] COLUMNS = {
+        PlayerRelation.FRIENDLY, PlayerRelation.CORDIAL, PlayerRelation.NEUTRAL,
+        PlayerRelation.SUSPICIOUS, PlayerRelation.HOSTILE};
 
     private final Screen parent;
     private final PlayerRelations relations;
@@ -54,7 +56,9 @@ public class PlayerRelationsScreen extends Screen {
 
     private Button allButton;
     private Button friendlyButton;
+    private Button cordialButton;
     private Button neutralButton;
+    private Button suspiciousButton;
     private Button hostileButton;
     private Button addButton;
 
@@ -66,36 +70,50 @@ public class PlayerRelationsScreen extends Screen {
 
     @Override
     protected void init() {
-        int tabWidth = 74;
+        int tabWidth = 68;
         int gap = 4;
+        int rowGap = 4;
+        int topY = 24;
+        int bottomY = topY + 20 + rowGap;
+
         int addGap = 16;
         int addWidth = 100;
-        int totalWidth = tabWidth * 4 + gap * 3 + addGap + addWidth;
-        int left = (this.width - totalWidth) / 2;
-        int y = 24;
+        int topWidth = tabWidth + addGap + addWidth;
+        int topLeft = (this.width - topWidth) / 2;
 
         allButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.all"),
                 button -> select(null))
-            .pos(left, y).size(tabWidth, 20).build();
-        friendlyButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.friendly"),
-                button -> select(PlayerRelation.FRIENDLY))
-            .pos(left + tabWidth + gap, y).size(tabWidth, 20).build();
-        neutralButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.neutral"),
-                button -> select(PlayerRelation.NEUTRAL))
-            .pos(left + (tabWidth + gap) * 2, y).size(tabWidth, 20).build();
-        hostileButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.hostile"),
-                button -> select(PlayerRelation.HOSTILE))
-            .pos(left + (tabWidth + gap) * 3, y).size(tabWidth, 20).build();
-        addRenderableWidget(allButton);
-        addRenderableWidget(friendlyButton);
-        addRenderableWidget(neutralButton);
-        addRenderableWidget(hostileButton);
-
+            .pos(topLeft, topY).size(tabWidth, 20).build();
         addButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.add"),
                 button -> Minecraft.getInstance().setScreen(new AddPlayerScreen(this, relations, selected)))
-            .pos(left + tabWidth * 4 + gap * 3 + addGap, y).size(addWidth, 20).build();
+            .pos(topLeft + tabWidth + addGap, topY).size(addWidth, 20).build();
         addButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.playerrelations.add.needslist")));
+        addRenderableWidget(allButton);
         addRenderableWidget(addButton);
+
+        int bottomWidth = tabWidth * 5 + gap * 4;
+        int bottomLeft = (this.width - bottomWidth) / 2;
+
+        friendlyButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.friendly"),
+                button -> select(PlayerRelation.FRIENDLY))
+            .pos(bottomLeft, bottomY).size(tabWidth, 20).build();
+        cordialButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.cordial"),
+                button -> select(PlayerRelation.CORDIAL))
+            .pos(bottomLeft + (tabWidth + gap), bottomY).size(tabWidth, 20).build();
+        neutralButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.neutral"),
+                button -> select(PlayerRelation.NEUTRAL))
+            .pos(bottomLeft + (tabWidth + gap) * 2, bottomY).size(tabWidth, 20).build();
+        suspiciousButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.suspicious"),
+                button -> select(PlayerRelation.SUSPICIOUS))
+            .pos(bottomLeft + (tabWidth + gap) * 3, bottomY).size(tabWidth, 20).build();
+        hostileButton = Button.builder(Component.translatable("civmodern.screen.playerrelations.hostile"),
+                button -> select(PlayerRelation.HOSTILE))
+            .pos(bottomLeft + (tabWidth + gap) * 4, bottomY).size(tabWidth, 20).build();
+        addRenderableWidget(friendlyButton);
+        addRenderableWidget(cordialButton);
+        addRenderableWidget(neutralButton);
+        addRenderableWidget(suspiciousButton);
+        addRenderableWidget(hostileButton);
 
         updateTabButtons();
     }
@@ -109,7 +127,9 @@ public class PlayerRelationsScreen extends Screen {
     private void updateTabButtons() {
         allButton.active = selected != null;
         friendlyButton.active = selected != PlayerRelation.FRIENDLY;
+        cordialButton.active = selected != PlayerRelation.CORDIAL;
         neutralButton.active = selected != PlayerRelation.NEUTRAL;
+        suspiciousButton.active = selected != PlayerRelation.SUSPICIOUS;
         hostileButton.active = selected != PlayerRelation.HOSTILE;
         // "Add player" needs a specific list to add to - not meaningful from the All page.
         addButton.active = selected != null;
@@ -139,7 +159,7 @@ public class PlayerRelationsScreen extends Screen {
     }
 
     private int rowsTop() {
-        return 64;
+        return 88;
     }
 
     private int rowsBottom() {
@@ -154,7 +174,7 @@ public class PlayerRelationsScreen extends Screen {
         return right - RIGHT_MARGIN - DELETE_BUTTON_WIDTH;
     }
 
-    /** Left edge of the Friendly/Neutral/Hostile column (index 0/1/2 in {@link #COLUMNS}). */
+    /** Left edge of the column at the given {@link #COLUMNS} index. */
     private int columnLeft(int right, int column) {
         int columnsFromRight = COLUMNS.length - 1 - column;
         return deleteLeft(right) - BUTTON_GAP - (MOVE_BUTTON_WIDTH + BUTTON_GAP) * columnsFromRight - MOVE_BUTTON_WIDTH;
@@ -215,7 +235,7 @@ public class PlayerRelationsScreen extends Screen {
                 }
                 int columnX = columnLeft(right, column);
                 drawRowButton(guiGraphics, columnX, buttonY, MOVE_BUTTON_WIDTH,
-                    Component.translatable("civmodern.screen.playerrelations." + columnRelation.toDatabaseKey()),
+                    Component.literal(columnRelation.name().substring(0, 1)),
                     rowHovered && mouseX >= columnX && mouseX < columnX + MOVE_BUTTON_WIDTH, NAME_COLOUR);
             }
             drawRowButton(guiGraphics, deleteLeft, buttonY, DELETE_BUTTON_WIDTH,

@@ -799,7 +799,8 @@ public class MapScreen extends Screen {
             return true;
         }
 
-        if (button == 0 || button == 1) {
+        // While boating, right-click places route points rather than panning - see mouseClicked.
+        if (button == 0 || (button == 1 && !boating)) {
             double scale = Minecraft.getInstance().getWindow().getGuiScale() * zoom;
             this.x -= changeX * scale;
             this.y -= changeY * scale;

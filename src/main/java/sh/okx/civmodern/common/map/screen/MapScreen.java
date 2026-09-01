@@ -334,7 +334,7 @@ public class MapScreen extends Screen {
 
                 RegionKey key = new RegionKey(Math.floorDiv((int) renderX, SIZE), Math.floorDiv((int) renderY, SIZE));
                 // todo if loading at low zoom, only render downsampled version to save memory
-                RegionAtlasTexture texture = mapCache.getTexture(key);
+                RegionAtlasTexture texture = config.isBiomeOverlayEnabled() ? mapCache.getBiomeTexture(key) : mapCache.getTexture(key);
                 if (texture != null) {
                     renderers.add(texture.draw(guiGraphics, renderX - (float) this.x, renderY - (float) this.y, scale));
                 }

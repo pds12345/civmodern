@@ -86,6 +86,7 @@
     "civmodern.map.copy": "Copied %s to clipboard",
     "civmodern.map.nodes.tooltip": "Show node territory over the map\nClick to cycle solid, translucent, and hidden\nHides the layer only; node data keeps updating",
     "civmodern.map.nodes.tooltip.frozen": "§7Querying is off, so this shows cached territory only",
+    "civmodern.map.biomes.tooltip": "Show biome colours over the map\nDisables the node territory overlay while on",
     "civmodern.screen.nodes.title": "Civ Modern Config (Node Overlay)",
     "civmodern.screen.nodes.query": "Query server",
     "civmodern.screen.nodes.query.tooltip": "Keep asking the server for node data. Turning this off freezes the overlay on what is already cached; it does not hide it. Use the button on the map to hide the layer.",

@@ -123,6 +123,33 @@ public class MapCache {
         }
     }
 
+    /**
+     * The registry name of the biome recorded at this block, or {@code null} when the region isn't
+     * loaded. Reads the biome id straight out of the packed per-block data already kept for map
+     * colouring ({@link RegionMapUpdater}), so this costs no extra storage. Regions saved before
+     * biome tracking existed, and blocks where the biome byte was never set, both resolve to
+     * {@link IdLookup}'s default lookup - id {@code 0} is never assigned to a real biome (see
+     * {@link IdLookup#getOrCreateId}) - which callers treat as "no biome data here".
+     */
+    public String biomeNameAt(int x, int z) {
+        RegionKey key = getRegionKey(x, z);
+        RegionReference ref = addReference(key);
+        try {
+            int[] mapData = ref.getLoader().getOrLoadMapData();
+            if (mapData == null) {
+                return null;
+            }
+            int packed = mapData[Math.floorMod(z, 512) + Math.floorMod(x, 512) * 512];
+            int biomeId = packed & 0xFF;
+            if (biomeId == 0) {
+                return null;
+            }
+            return biomeLookup.getName(biomeId);
+        } finally {
+            ref.removeReference();
+        }
+    }
+
     public void updateChunk(LevelChunk chunk) {
         ChunkPos pos = chunk.getPos();
         int regionX = pos.getRegionX();

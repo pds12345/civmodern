@@ -77,6 +77,7 @@ public class MapScreen extends Screen {
     private EditWaypointModal editWaypointModal;
     private ImageButton openWaypointButton;
     private ImageButton toggleNodes;
+    private ImageButton toggleBiomes;
 
     /** Tracks the API state the node button's tooltip was built for, so it can follow along. */
     private NodeApiClient.State nodeTooltipState;
@@ -219,6 +220,15 @@ public class MapScreen extends Screen {
         updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
 
+        toggleBiomes = new ImageButton(this.width - 150, 10, 20, 20, biomeOverlayImage(), imbg -> {
+            config.setBiomeOverlayEnabled(!config.isBiomeOverlayEnabled());
+            changedConfig = true;
+            updateBiomeOverlayButton(imbg);
+            updateNodeOverlayButton(toggleNodes);
+        });
+        updateBiomeOverlayButton(toggleBiomes);
+        addRenderableWidget(toggleBiomes);
+
         ImageButton managerButton = new ImageButton(this.width - 126, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
             Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
@@ -257,6 +267,16 @@ public class MapScreen extends Screen {
     private Identifier nodeOverlayImage() {
         return Identifier.fromNamespaceAndPath("civmodern",
             config.getNodeOverlayMode().isVisible() ? "gui/nodes.png" : "gui/nodesoff.png");
+    }
+
+    private void updateBiomeOverlayButton(ImageButton button) {
+        button.setImage(biomeOverlayImage());
+        button.setTooltip(Tooltip.create(Component.translatable("civmodern.map.biomes.tooltip")));
+    }
+
+    private Identifier biomeOverlayImage() {
+        return Identifier.fromNamespaceAndPath("civmodern",
+            config.isBiomeOverlayEnabled() ? "gui/biome.png" : "gui/biomeoff.png");
     }
 
     /**
@@ -583,7 +603,31 @@ public class MapScreen extends Screen {
             if (!lines.isEmpty()) {
                 guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
             }
+        } else if (config.isBiomeOverlayEnabled() && hoveredWaypoint == null && !newWaypointModal.isVisible()
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
+            Component tooltip = biomeTooltip(mouseBlockX, mouseBlockY);
+            if (tooltip != null) {
+                guiGraphics.setComponentTooltipForNextFrame(font, List.of(tooltip), mouseX, mouseY);
+            }
         }
+    }
+
+    /**
+     * The biome's own vanilla translation ("biome.minecraft.plains"), so a datapack biome with its
+     * own lang entry resolves correctly too. {@code null} where nothing is recorded there
+     * ({@link MapCache#biomeNameAt} already folds "legacy region" and "not yet loaded" together),
+     * so both simply show no tooltip.
+     */
+    private Component biomeTooltip(int blockX, int blockZ) {
+        String biomeName = mapCache.biomeNameAt(blockX, blockZ);
+        if (biomeName == null) {
+            return null;
+        }
+        int colon = biomeName.indexOf(':');
+        if (colon < 0) {
+            return Component.literal(biomeName);
+        }
+        return Component.translatable("biome." + biomeName.substring(0, colon) + "." + biomeName.substring(colon + 1));
     }
 
     @Override

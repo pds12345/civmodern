@@ -67,6 +67,7 @@ public class CivMapConfig {
     private boolean nodeChunkGrid;
     private boolean nodeShowUnclaimed;
     private int nodeQuerySize;
+    private boolean biomeOverlayEnabled;
 
     public CivMapConfig(File file, Properties properties) {
         this.file = file;
@@ -136,6 +137,7 @@ public class CivMapConfig {
         // not leave the slider sitting outside its own range.
         this.nodeQuerySize = NodeProtocol.clampQuerySize(
             Integer.parseInt(properties.getProperty("node_query_size", Integer.toString(NodeProtocol.MAX_QUERY_SIZE))));
+        this.biomeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("biome_overlay_enabled", "false"));
     }
 
     public void save() {
@@ -189,6 +191,7 @@ public class CivMapConfig {
             properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
             properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
             properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
+            properties.setProperty("biome_overlay_enabled", Boolean.toString(biomeOverlayEnabled));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
                 properties.store(output, null);
@@ -526,6 +529,11 @@ public class CivMapConfig {
 
     public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
         this.nodeOverlayMode = nodeOverlayMode;
+        // The two overlays colour the same map tiles, so showing one always hides the other - both
+        // toggles live here rather than in the screen so this holds regardless of entry point.
+        if (nodeOverlayMode.isVisible()) {
+            this.biomeOverlayEnabled = false;
+        }
     }
 
     /** How the overlay is drawn on the minimap. Deliberately independent of the map's mode. */
@@ -602,5 +610,17 @@ public class CivMapConfig {
 
     public void setNodeQuerySize(int nodeQuerySize) {
         this.nodeQuerySize = NodeProtocol.clampQuerySize(nodeQuerySize);
+    }
+
+    /** Whether the biome colour overlay is drawn on the map, in place of the node territory overlay. */
+    public boolean isBiomeOverlayEnabled() {
+        return biomeOverlayEnabled;
+    }
+
+    public void setBiomeOverlayEnabled(boolean biomeOverlayEnabled) {
+        this.biomeOverlayEnabled = biomeOverlayEnabled;
+        if (biomeOverlayEnabled && nodeOverlayMode.isVisible()) {
+            this.nodeOverlayMode = NodeOverlayMode.OFF;
+        }
     }
 }

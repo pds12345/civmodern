@@ -220,7 +220,7 @@ public class MapScreen extends Screen {
         updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
 
-        toggleBiomes = new ImageButton(this.width - 150, 10, 20, 20, biomeOverlayImage(), imbg -> {
+        toggleBiomes = new ImageButton(this.width - 126, 10, 20, 20, biomeOverlayImage(), imbg -> {
             config.setBiomeOverlayEnabled(!config.isBiomeOverlayEnabled());
             changedConfig = true;
             updateBiomeOverlayButton(imbg);
@@ -229,7 +229,7 @@ public class MapScreen extends Screen {
         updateBiomeOverlayButton(toggleBiomes);
         addRenderableWidget(toggleBiomes);
 
-        ImageButton managerButton = new ImageButton(this.width - 126, 10, 20, 20,
+        ImageButton managerButton = new ImageButton(this.width - 150, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
             Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
         });

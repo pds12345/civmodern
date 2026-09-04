@@ -129,5 +129,9 @@
     "civmodern.radar.leave" : "§r%s §edisappeared at §b[%s§b]",
     "civmodern.button.toggle": "%s: %s",
     "civmodern.button.toggle.on": "ON",
-    "civmodern.button.toggle.off": "OFF"
+    "civmodern.button.toggle.off": "OFF",
+    "civmodern.screen.map.mobs": "Minimap Mobs",
+    "civmodern.screen.mobs.title": "Minimap Mobs",
+    "civmodern.screen.mobs.enabled": "Show mobs on minimap",
+    "civmodern.screen.mobs.reset": "Reset to defaults"
 }

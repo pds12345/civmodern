@@ -8,6 +8,10 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.Scoreboard;
@@ -18,6 +22,8 @@ import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
+import sh.okx.civmodern.common.map.mobs.MinimapMobTypes;
+import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
@@ -48,6 +54,12 @@ public class Minimap {
     private final ColourProvider provider;
 
     private static final RegionAtlasTexture blank = new RegionAtlasTexture();
+    // Reuses the waypoint diamond as a generic per-category marker - there is no per-mob "head"
+    // icon yet (vanilla mob textures have no consistent head UV to crop, unlike a player skin's
+    // face), so this is a placeholder tinted by MobThreatCategory until real art replaces it.
+    private static final Identifier MOB_MARKER = Identifier.fromNamespaceAndPath("civmodern", "map/waypoint.png");
+    /** Y-levels above/below the player a mob's icon fades out over; beyond this it is invisible. */
+    private static final float MOB_Y_FADE_RANGE = 20f;
 
     static {
         RenderSystem.queueFencedTask(blank::init);
@@ -174,6 +186,42 @@ public class Minimap {
         // own base zoom/log base since its zoom (blocks per pixel) ranges over different values.
         float zoomSteps = (float) (Math.log(zoom / config.getMinimapIconBaseZoom()) / Math.log(config.getMinimapIconZoomLogBase()));
         float iconScale = 1f / (1f + Math.max(0f, zoomSteps));
+
+        if (config.isMinimapMobsEnabled()) {
+            matrices.pushMatrix();
+            for (Entity entity : mc.level.entitiesForRendering()) {
+                if (!(entity instanceof LivingEntity) || entity instanceof Player || !entity.isAlive()) {
+                    continue;
+                }
+                EntityType<?> type = entity.getType();
+                MobThreatCategory category = MinimapMobTypes.categoryOf(type);
+                if (category == null || !config.isMinimapMobVisible(type)) {
+                    continue;
+                }
+
+                float dy = (float) Math.abs(entity.getY() - player.getY());
+                float alpha = 1f - Mth.clamp(dy / MOB_Y_FADE_RANGE, 0f, 1f);
+                if (alpha <= 0f) {
+                    continue;
+                }
+
+                float ex = (float) Mth.lerp(event.deltaTick(), entity.xo, entity.getX());
+                float ez = (float) Mth.lerp(event.deltaTick(), entity.zo, entity.getZ());
+                double tx = (ex - x) / zoom;
+                double ty = (ez - y) / zoom;
+                if (tx < 0 || ty < 0 || tx > size || ty > size) {
+                    continue;
+                }
+
+                matrices.pushMatrix();
+                matrices.translate((float) tx, (float) ty);
+                matrices.scale(iconScale * 0.5f, iconScale * 0.5f);
+                int tint = ((int) (alpha * 0xFF) << 24) | (category.colour() & 0xFFFFFF);
+                graphics.blit(RenderPipelines.GUI_TEXTURED, MOB_MARKER, -8, -8, 0, 0, 16, 16, 16, 16, tint);
+                matrices.popMatrix();
+            }
+            matrices.popMatrix();
+        }
 
         if (config.isPlayerWaypointsEnabled()) {
             // TODO fix the player rendering above the chevron

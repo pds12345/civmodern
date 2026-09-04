@@ -3,10 +3,18 @@ package sh.okx.civmodern.common;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.EntityType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
+import sh.okx.civmodern.common.map.mobs.MinimapMobTypes;
+import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
@@ -70,6 +78,9 @@ public class CivMapConfig {
     private boolean nodeShowUnclaimed;
     private int nodeQuerySize;
     private boolean biomeOverlayEnabled;
+    private boolean minimapMobsEnabled;
+    /** Registry ids (e.g. "minecraft:zombie") of the mob types currently shown on the minimap. */
+    private final Set<Identifier> visibleMinimapMobs = new HashSet<>();
 
     public CivMapConfig(File file, Properties properties) {
         this.file = file;
@@ -145,6 +156,24 @@ public class CivMapConfig {
         this.nodeQuerySize = NodeProtocol.clampQuerySize(
             Integer.parseInt(properties.getProperty("node_query_size", Integer.toString(NodeProtocol.MAX_QUERY_SIZE))));
         this.biomeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("biome_overlay_enabled", "false"));
+        this.minimapMobsEnabled = Boolean.parseBoolean(properties.getProperty("minimap_mobs_enabled", "true"));
+        // Absent (rather than empty) means this config predates the feature: seed the default
+        // set (every hostile/neutral mob) instead of leaving every mob invisible.
+        String visibleMobsProperty = properties.getProperty("minimap_visible_mobs");
+        if (visibleMobsProperty == null) {
+            for (Map.Entry<EntityType<?>, MobThreatCategory> entry : MinimapMobTypes.all().entrySet()) {
+                if (entry.getValue().isDefaultVisible()) {
+                    this.visibleMinimapMobs.add(MinimapMobTypes.idOf(entry.getKey()));
+                }
+            }
+        } else if (!visibleMobsProperty.isBlank()) {
+            for (String id : visibleMobsProperty.split(",")) {
+                Identifier parsed = Identifier.tryParse(id);
+                if (parsed != null) {
+                    this.visibleMinimapMobs.add(parsed);
+                }
+            }
+        }
     }
 
     public void save() {
@@ -201,6 +230,10 @@ public class CivMapConfig {
             properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
             properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
             properties.setProperty("biome_overlay_enabled", Boolean.toString(biomeOverlayEnabled));
+            properties.setProperty("minimap_mobs_enabled", Boolean.toString(minimapMobsEnabled));
+            properties.setProperty("minimap_visible_mobs", visibleMinimapMobs.stream()
+                .map(Identifier::toString)
+                .collect(Collectors.joining(",")));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
                 properties.store(output, null);
@@ -646,6 +679,27 @@ public class CivMapConfig {
         this.biomeOverlayEnabled = biomeOverlayEnabled;
         if (biomeOverlayEnabled && nodeOverlayMode.isVisible()) {
             this.nodeOverlayMode = NodeOverlayMode.OFF;
+        }
+    }
+
+    public boolean isMinimapMobsEnabled() {
+        return minimapMobsEnabled;
+    }
+
+    public void setMinimapMobsEnabled(boolean minimapMobsEnabled) {
+        this.minimapMobsEnabled = minimapMobsEnabled;
+    }
+
+    public boolean isMinimapMobVisible(EntityType<?> type) {
+        return visibleMinimapMobs.contains(MinimapMobTypes.idOf(type));
+    }
+
+    public void setMinimapMobVisible(EntityType<?> type, boolean visible) {
+        Identifier id = MinimapMobTypes.idOf(type);
+        if (visible) {
+            visibleMinimapMobs.add(id);
+        } else {
+            visibleMinimapMobs.remove(id);
         }
     }
 }

@@ -112,6 +112,9 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         offset += 24;
         addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.coords"), this.config::isShowMinimapCoords, this.config::setShowMinimapCoords, null, ToggleButton.DEFAULT_NARRATION));
+        addRenderableWidget(Button.builder(Component.translatable("civmodern.screen.map.mobs"), button -> {
+            Minecraft.getInstance().setScreen(new MinimapMobConfigScreen(config, this));
+        }).pos(right, offset).size(150, 20).build());
         Waypoints waypoints = AbstractCivModernMod.getInstance().getWorldListener().getWaypoints();
         Button managerButton = Button.builder(Component.translatable("civmodern.screen.map.waypointmanager"), button -> {
             if (waypoints != null) {

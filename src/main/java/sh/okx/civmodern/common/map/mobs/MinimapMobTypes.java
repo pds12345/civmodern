@@ -3,8 +3,8 @@ package sh.okx.civmodern.common.map.mobs;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.item.SpawnEggItem;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -18,12 +18,19 @@ import static sh.okx.civmodern.common.map.mobs.MobThreatCategory.PASSIVE;
  * {@code net.minecraft.world.entity.NeutralMob} (anger/provoke mechanic -> NEUTRAL) or
  * {@code net.minecraft.world.entity.monster.Enemy} (attacks unprovoked -> HOSTILE), defaulting
  * to PASSIVE otherwise - not by category-guessing from name. Raid bosses (ender dragon, wither,
- * giant) are left out entirely: rare, huge, and not what "mobs on the minimap" is about.
+ * giant) are left out entirely: rare, huge, and not what "mobs on the minimap" is about. So is
+ * the illusioner: unobtainable without commands, and correspondingly missing from the mob list
+ * page below that the icons came from.
  *
- * <p>Icons are drawn from each mob's spawn egg (see Minimap), so {@link #all()} additionally
- * drops any entry without one - a mob nothing can render is not worth listing.
+ * <p>Icons under {@code assets/civmodern/mob/<id>.png} (see {@link #iconLocation}) are 32x32
+ * "face" crops pulled from https://minecraft.wiki/w/Mob#List_of_mobs (community-extracted from
+ * the game's own textures, not shipped by Mojang), padded onto a transparent square - one-off
+ * fetch, not build-time generated, so they are committed as plain PNGs.
  */
 public final class MinimapMobTypes {
+
+    /** Every icon under assets/civmodern/mob/ is a square this many pixels on a side. */
+    public static final int ICON_SIZE = 32;
 
     private static final Map<EntityType<?>, MobThreatCategory> CATEGORIES = new LinkedHashMap<>();
 
@@ -43,7 +50,6 @@ public final class MinimapMobTypes {
         register(EntityType.GUARDIAN, HOSTILE);
         register(EntityType.HOGLIN, HOSTILE);
         register(EntityType.HUSK, HOSTILE);
-        register(EntityType.ILLUSIONER, HOSTILE);
         register(EntityType.MAGMA_CUBE, HOSTILE);
         register(EntityType.PARCHED, HOSTILE);
         register(EntityType.PHANTOM, HOSTILE);
@@ -128,15 +134,9 @@ public final class MinimapMobTypes {
         CATEGORIES.put(type, category);
     }
 
-    /** Every tracked mob type that has a spawn-egg icon to draw it with, in registration order. */
+    /** Every tracked mob type, in registration order - every one of these has an icon. */
     public static Map<EntityType<?>, MobThreatCategory> all() {
-        Map<EntityType<?>, MobThreatCategory> available = new LinkedHashMap<>();
-        for (Map.Entry<EntityType<?>, MobThreatCategory> entry : CATEGORIES.entrySet()) {
-            if (SpawnEggItem.byId(entry.getKey()) != null) {
-                available.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return available;
+        return Collections.unmodifiableMap(CATEGORIES);
     }
 
     public static MobThreatCategory categoryOf(EntityType<?> type) {
@@ -149,5 +149,10 @@ public final class MinimapMobTypes {
 
     public static Identifier idOf(EntityType<?> type) {
         return BuiltInRegistries.ENTITY_TYPE.getKey(type);
+    }
+
+    /** The 32x32 face icon for this mob - see the class doc for where these came from. */
+    public static Identifier iconLocation(EntityType<?> type) {
+        return Identifier.fromNamespaceAndPath("civmodern", "mob/" + idOf(type).getPath() + ".png");
     }
 }

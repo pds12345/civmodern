@@ -6,7 +6,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -54,10 +53,8 @@ public class Minimap {
     private final ColourProvider provider;
 
     private static final RegionAtlasTexture blank = new RegionAtlasTexture();
-    // Reuses the waypoint diamond as a generic per-category marker - there is no per-mob "head"
-    // icon yet (vanilla mob textures have no consistent head UV to crop, unlike a player skin's
-    // face), so this is a placeholder tinted by MobThreatCategory until real art replaces it.
-    private static final Identifier MOB_MARKER = Identifier.fromNamespaceAndPath("civmodern", "map/waypoint.png");
+    /** On-screen size (before {@code iconScale}) a mob's icon is drawn at, in GUI pixels. */
+    private static final float MOB_ICON_DISPLAY_SIZE = 10f;
     /** Y-levels above/below the player a mob's icon fades out over; beyond this it is invisible. */
     private static final float MOB_Y_FADE_RANGE = 20f;
 
@@ -215,9 +212,13 @@ public class Minimap {
 
                 matrices.pushMatrix();
                 matrices.translate((float) tx, (float) ty);
-                matrices.scale(iconScale * 0.5f, iconScale * 0.5f);
-                int tint = ((int) (alpha * 0xFF) << 24) | (category.colour() & 0xFFFFFF);
-                graphics.blit(RenderPipelines.GUI_TEXTURED, MOB_MARKER, -8, -8, 0, 0, 16, 16, 16, 16, tint);
+                float displayScale = iconScale * (MOB_ICON_DISPLAY_SIZE / MinimapMobTypes.ICON_SIZE);
+                matrices.scale(displayScale, displayScale);
+                // Full colour - only alpha is adjusted, so the mob's actual icon art shows through.
+                int tint = ((int) (alpha * 0xFF) << 24) | 0xFFFFFF;
+                int half = MinimapMobTypes.ICON_SIZE / 2;
+                graphics.blit(RenderPipelines.GUI_TEXTURED, MinimapMobTypes.iconLocation(type), -half, -half, 0, 0,
+                    MinimapMobTypes.ICON_SIZE, MinimapMobTypes.ICON_SIZE, MinimapMobTypes.ICON_SIZE, MinimapMobTypes.ICON_SIZE, tint);
                 matrices.popMatrix();
             }
             matrices.popMatrix();

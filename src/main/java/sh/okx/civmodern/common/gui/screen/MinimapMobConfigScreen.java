@@ -10,8 +10,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.SpawnEggItem;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 import sh.okx.civmodern.common.CivMapConfig;
@@ -25,11 +23,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Per-mob visibility toggles for the minimap's mob icons: one scrollable row per vanilla mob
- * with a spawn egg (see {@link MinimapMobTypes#all()}), grouped hostile/neutral/passive then
- * alphabetically. Clicking a row - or the eye icon on it - flips that mob's visibility; there is
- * no per-row edit modal, unlike {@link sh.okx.civmodern.common.map.screen.WaypointManagerScreen}
- * this table is modelled after, since a mob only has the one setting.
+ * Per-mob visibility toggles for the minimap's mob icons: one scrollable row per tracked mob
+ * (see {@link MinimapMobTypes#all()}), grouped hostile/neutral/passive then alphabetically.
+ * Clicking a row - or the eye icon on it - flips that mob's visibility; there is no per-row edit
+ * modal, unlike {@link sh.okx.civmodern.common.map.screen.WaypointManagerScreen} this table is
+ * modelled after, since a mob only has the one setting.
  */
 final class MinimapMobConfigScreen extends AbstractConfigScreen {
 
@@ -37,6 +35,7 @@ final class MinimapMobConfigScreen extends AbstractConfigScreen {
     private static final int TOGGLE_COLUMN = 18;
     private static final int TOGGLE_SIZE = 16;
     private static final Identifier TOGGLE_TEXTURE = Identifier.fromNamespaceAndPath("civmodern", "gui/visibility.png");
+    private static final int ICON_DISPLAY_SIZE = 16;
     private static final int ICON_COLUMN = 22;
     private static final int CATEGORY_COLUMN = 60;
 
@@ -45,7 +44,7 @@ final class MinimapMobConfigScreen extends AbstractConfigScreen {
     private static final int STRIPE_COLOUR = 0x14FFFFFF;
     private static final int HOVER_COLOUR = 0x33FFFFFF;
 
-    private record Row(EntityType<?> type, MobThreatCategory category, String name, ItemStack icon) {
+    private record Row(EntityType<?> type, MobThreatCategory category, String name, Identifier icon) {
     }
 
     private final List<Row> rows;
@@ -60,7 +59,7 @@ final class MinimapMobConfigScreen extends AbstractConfigScreen {
         super(config, parent, Component.translatable("civmodern.screen.mobs.title"));
         this.rows = MinimapMobTypes.all().entrySet().stream()
             .map(entry -> new Row(entry.getKey(), entry.getValue(), entry.getKey().getDescription().getString(),
-                new ItemStack(SpawnEggItem.byId(entry.getKey()))))
+                MinimapMobTypes.iconLocation(entry.getKey())))
             .sorted(Comparator
                 .<Row>comparingInt(row -> row.category().ordinal())
                 .thenComparing(Row::name, String.CASE_INSENSITIVE_ORDER))
@@ -145,8 +144,16 @@ final class MinimapMobConfigScreen extends AbstractConfigScreen {
                 TOGGLE_SIZE, TOGGLE_SIZE, 20, 20, 20, 40, -1);
 
             int iconLeft = left + TOGGLE_COLUMN + 3;
-            int iconTop = rowY + (ROW_HEIGHT - 16) / 2;
-            guiGraphics.renderItem(row.icon(), iconLeft, iconTop);
+            int iconTop = rowY + (ROW_HEIGHT - ICON_DISPLAY_SIZE) / 2;
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().translate(iconLeft + ICON_DISPLAY_SIZE / 2f, iconTop + ICON_DISPLAY_SIZE / 2f);
+            float iconScale = (float) ICON_DISPLAY_SIZE / MinimapMobTypes.ICON_SIZE;
+            guiGraphics.pose().scale(iconScale, iconScale);
+            int half = MinimapMobTypes.ICON_SIZE / 2;
+            int iconTint = visible ? -1 : 0x88FFFFFF;
+            guiGraphics.blit(RenderPipelines.GUI_TEXTURED, row.icon(), -half, -half, 0, 0,
+                MinimapMobTypes.ICON_SIZE, MinimapMobTypes.ICON_SIZE, MinimapMobTypes.ICON_SIZE, MinimapMobTypes.ICON_SIZE, iconTint);
+            guiGraphics.pose().popMatrix();
 
             int categoryRight = right - 6;
             int nameLeft = iconLeft + ICON_COLUMN;

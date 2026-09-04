@@ -53,6 +53,8 @@ public class CivMapConfig {
     private float minimapZoom;
     private float waypointBaseZoom;
     private float waypointZoomLogBase;
+    private float minimapIconBaseZoom;
+    private float minimapIconZoomLogBase;
     private float maxZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
@@ -108,6 +110,11 @@ public class CivMapConfig {
         // log base controlling how gently they shrink as the map zooms out past it.
         this.waypointBaseZoom = Float.parseFloat(properties.getProperty("waypoint_base_zoom", "0.03125"));
         this.waypointZoomLogBase = Float.parseFloat(properties.getProperty("waypoint_zoom_log_base", "3"));
+        // Same idea as waypointBaseZoom/waypointZoomLogBase but for the minimap, whose zoom
+        // (blocks per pixel) ranges over its own doubling steps (0.5-16) rather than the map
+        // screen's, so it gets its own base zoom and log base.
+        this.minimapIconBaseZoom = Float.parseFloat(properties.getProperty("minimap_icon_base_zoom", "0.5"));
+        this.minimapIconZoomLogBase = Float.parseFloat(properties.getProperty("minimap_icon_zoom_log_base", "3"));
         // Furthest-out zoom level (blocks per pixel) the map screen allows scrolling to.
         this.maxZoom = Float.parseFloat(properties.getProperty("max_zoom", "32"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
@@ -177,6 +184,8 @@ public class CivMapConfig {
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
             properties.setProperty("waypoint_base_zoom", Float.toString(waypointBaseZoom));
             properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
+            properties.setProperty("minimap_icon_base_zoom", Float.toString(minimapIconBaseZoom));
+            properties.setProperty("minimap_icon_zoom_log_base", Float.toString(minimapIconZoomLogBase));
             properties.setProperty("max_zoom", Float.toString(maxZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
@@ -480,6 +489,22 @@ public class CivMapConfig {
 
     public void setWaypointZoomLogBase(float waypointZoomLogBase) {
         this.waypointZoomLogBase = waypointZoomLogBase;
+    }
+
+    public float getMinimapIconBaseZoom() {
+        return minimapIconBaseZoom;
+    }
+
+    public void setMinimapIconBaseZoom(float minimapIconBaseZoom) {
+        this.minimapIconBaseZoom = minimapIconBaseZoom;
+    }
+
+    public float getMinimapIconZoomLogBase() {
+        return minimapIconZoomLogBase;
+    }
+
+    public void setMinimapIconZoomLogBase(float minimapIconZoomLogBase) {
+        this.minimapIconZoomLogBase = minimapIconZoomLogBase;
     }
 
     public float getMaxZoom() {

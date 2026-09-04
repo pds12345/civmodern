@@ -169,6 +169,12 @@ public class Minimap {
         if (config.isShowMinimapCoords()) {
             event.guiGraphics().drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 6, -1);
         }
+
+        // Same easing-log-scale approach as MapScreen#waypointScale(), but against the minimap's
+        // own base zoom/log base since its zoom (blocks per pixel) ranges over different values.
+        float zoomSteps = (float) (Math.log(zoom / config.getMinimapIconBaseZoom()) / Math.log(config.getMinimapIconZoomLogBase()));
+        float iconScale = 1f / (1f + Math.max(0f, zoomSteps));
+
         if (config.isPlayerWaypointsEnabled()) {
             // TODO fix the player rendering above the chevron
             // todo fading
@@ -183,6 +189,7 @@ public class Minimap {
                 }
                 matrices.pushMatrix();
                 matrices.translate((float) tx, (float) ty);
+                matrices.scale(iconScale, iconScale);
 
                 boolean old = waypoint.timestamp().until(Instant.now(), ChronoUnit.MINUTES) >= 10;
                 int colour = (old ? 0x77 : 0xFF) << 24 | 0xFFFFFF;
@@ -212,6 +219,7 @@ public class Minimap {
                     }
                     matrices.pushMatrix();
                     matrices.translate((float) tx, (float) ty);
+                    matrices.scale(iconScale, iconScale);
 
                     waypoint.render2D(graphics);
                     matrices.popMatrix();

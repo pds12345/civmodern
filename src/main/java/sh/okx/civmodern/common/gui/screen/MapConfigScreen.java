@@ -167,6 +167,13 @@ public class MapConfigScreen extends AbstractConfigScreen {
         addNumberInput("Waypoint zoom log base", right, waypointScalingLabelY, offset, 1.01f, 20f,
             config::getWaypointZoomLogBase, config::setWaypointZoomLogBase);
         offset += 24;
+        int minimapScalingLabelY = offset;
+        offset += 12;
+        addNumberInput("Minimap icon base zoom", left, minimapScalingLabelY, offset, 0.001f, 16f,
+            config::getMinimapIconBaseZoom, config::setMinimapIconBaseZoom);
+        addNumberInput("Minimap icon zoom log base", right, minimapScalingLabelY, offset, 1.01f, 20f,
+            config::getMinimapIconZoomLogBase, config::setMinimapIconZoomLogBase);
+        offset += 24;
         chevronColourY = offset;
 
         offset += 12;

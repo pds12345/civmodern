@@ -195,6 +195,9 @@ public class Minimap {
             List<Waypoint> waypointList = waypoints.getWaypoints();
             Map<String, List<Waypoint>> waypointByIcon = new HashMap<>();
             for (Waypoint waypoint : waypointList) {
+                if (!waypoint.visible()) {
+                    continue;
+                }
                 waypointByIcon.computeIfAbsent(waypoint.icon(), k -> new ArrayList<>()).add(waypoint);
             }
             matrices.pushMatrix();

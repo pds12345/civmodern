@@ -51,6 +51,9 @@ public class CivMapConfig {
     private boolean waypointRenderingEnabled;
     private int waypointRenderDistance;
     private float minimapZoom;
+    private float waypointBaseZoom;
+    private float waypointZoomLogBase;
+    private float maxZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
@@ -64,6 +67,7 @@ public class CivMapConfig {
     private boolean nodeChunkGrid;
     private boolean nodeShowUnclaimed;
     private int nodeQuerySize;
+    private boolean biomeOverlayEnabled;
 
     public CivMapConfig(File file, Properties properties) {
         this.file = file;
@@ -100,6 +104,12 @@ public class CivMapConfig {
         this.waypointRenderingEnabled = Boolean.parseBoolean(properties.getProperty("waypoint_rendering_enabled", "true"));
         this.waypointRenderDistance = Integer.parseInt(properties.getProperty("waypoint_render_distance", "2000"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
+        // Zoom level (blocks per pixel) treated as "full size" for waypoint icons/labels, and the
+        // log base controlling how gently they shrink as the map zooms out past it.
+        this.waypointBaseZoom = Float.parseFloat(properties.getProperty("waypoint_base_zoom", "0.03125"));
+        this.waypointZoomLogBase = Float.parseFloat(properties.getProperty("waypoint_zoom_log_base", "3"));
+        // Furthest-out zoom level (blocks per pixel) the map screen allows scrolling to.
+        this.maxZoom = Float.parseFloat(properties.getProperty("max_zoom", "32"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
@@ -127,6 +137,7 @@ public class CivMapConfig {
         // not leave the slider sitting outside its own range.
         this.nodeQuerySize = NodeProtocol.clampQuerySize(
             Integer.parseInt(properties.getProperty("node_query_size", Integer.toString(NodeProtocol.MAX_QUERY_SIZE))));
+        this.biomeOverlayEnabled = Boolean.parseBoolean(properties.getProperty("biome_overlay_enabled", "false"));
     }
 
     public void save() {
@@ -164,6 +175,9 @@ public class CivMapConfig {
             properties.setProperty("waypoint_rendering_enabled", Boolean.toString(waypointRenderingEnabled));
             properties.setProperty("waypoint_render_distance", Integer.toString(waypointRenderDistance));
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
+            properties.setProperty("waypoint_base_zoom", Float.toString(waypointBaseZoom));
+            properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
+            properties.setProperty("max_zoom", Float.toString(maxZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
@@ -177,6 +191,7 @@ public class CivMapConfig {
             properties.setProperty("node_chunk_grid", Boolean.toString(nodeChunkGrid));
             properties.setProperty("node_show_unclaimed", Boolean.toString(nodeShowUnclaimed));
             properties.setProperty("node_query_size", Integer.toString(nodeQuerySize));
+            properties.setProperty("biome_overlay_enabled", Boolean.toString(biomeOverlayEnabled));
 
             try (FileOutputStream output = new FileOutputStream(file)) {
                 properties.store(output, null);
@@ -451,6 +466,30 @@ public class CivMapConfig {
         this.minimapZoom = minimapZoom;
     }
 
+    public float getWaypointBaseZoom() {
+        return waypointBaseZoom;
+    }
+
+    public void setWaypointBaseZoom(float waypointBaseZoom) {
+        this.waypointBaseZoom = waypointBaseZoom;
+    }
+
+    public float getWaypointZoomLogBase() {
+        return waypointZoomLogBase;
+    }
+
+    public void setWaypointZoomLogBase(float waypointZoomLogBase) {
+        this.waypointZoomLogBase = waypointZoomLogBase;
+    }
+
+    public float getMaxZoom() {
+        return maxZoom;
+    }
+
+    public void setMaxZoom(float maxZoom) {
+        this.maxZoom = maxZoom;
+    }
+
     public boolean isCratesAreCompacted() {
         return cratesAreCompacted;
     }
@@ -490,6 +529,11 @@ public class CivMapConfig {
 
     public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
         this.nodeOverlayMode = nodeOverlayMode;
+        // The two overlays colour the same map tiles, so showing one always hides the other - both
+        // toggles live here rather than in the screen so this holds regardless of entry point.
+        if (nodeOverlayMode.isVisible()) {
+            this.biomeOverlayEnabled = false;
+        }
     }
 
     /** How the overlay is drawn on the minimap. Deliberately independent of the map's mode. */
@@ -566,5 +610,17 @@ public class CivMapConfig {
 
     public void setNodeQuerySize(int nodeQuerySize) {
         this.nodeQuerySize = NodeProtocol.clampQuerySize(nodeQuerySize);
+    }
+
+    /** Whether the biome colour overlay is drawn on the map, in place of the node territory overlay. */
+    public boolean isBiomeOverlayEnabled() {
+        return biomeOverlayEnabled;
+    }
+
+    public void setBiomeOverlayEnabled(boolean biomeOverlayEnabled) {
+        this.biomeOverlayEnabled = biomeOverlayEnabled;
+        if (biomeOverlayEnabled && nodeOverlayMode.isVisible()) {
+            this.nodeOverlayMode = NodeOverlayMode.OFF;
+        }
     }
 }

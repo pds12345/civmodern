@@ -77,6 +77,7 @@ public class MapScreen extends Screen {
     private EditWaypointModal editWaypointModal;
     private ImageButton openWaypointButton;
     private ImageButton toggleNodes;
+    private ImageButton toggleBiomes;
 
     /** Tracks the API state the node button's tooltip was built for, so it can follow along. */
     private NodeApiClient.State nodeTooltipState;
@@ -219,7 +220,16 @@ public class MapScreen extends Screen {
         updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
 
-        ImageButton managerButton = new ImageButton(this.width - 126, 10, 20, 20,
+        toggleBiomes = new ImageButton(this.width - 126, 10, 20, 20, biomeOverlayImage(), imbg -> {
+            config.setBiomeOverlayEnabled(!config.isBiomeOverlayEnabled());
+            changedConfig = true;
+            updateBiomeOverlayButton(imbg);
+            updateNodeOverlayButton(toggleNodes);
+        });
+        updateBiomeOverlayButton(toggleBiomes);
+        addRenderableWidget(toggleBiomes);
+
+        ImageButton managerButton = new ImageButton(this.width - 150, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
             Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
         });
@@ -259,6 +269,16 @@ public class MapScreen extends Screen {
             config.getNodeOverlayMode().isVisible() ? "gui/nodes.png" : "gui/nodesoff.png");
     }
 
+    private void updateBiomeOverlayButton(ImageButton button) {
+        button.setImage(biomeOverlayImage());
+        button.setTooltip(Tooltip.create(Component.translatable("civmodern.map.biomes.tooltip")));
+    }
+
+    private Identifier biomeOverlayImage() {
+        return Identifier.fromNamespaceAndPath("civmodern",
+            config.isBiomeOverlayEnabled() ? "gui/biome.png" : "gui/biomeoff.png");
+    }
+
     /**
      * Explains that this button only hides the layer, and why nothing is drawn when the server is
      * not serving node data.
@@ -292,6 +312,7 @@ public class MapScreen extends Screen {
         Matrix3x2fStack matrices = guiGraphics.pose();
 
         float scale = (float) Minecraft.getInstance().getWindow().getGuiScale() * zoom;
+        float waypointScale = waypointScale();
         Window window = Minecraft.getInstance().getWindow();
 
         if (!positionContextMenu.isVisible()) {
@@ -313,7 +334,7 @@ public class MapScreen extends Screen {
 
                 RegionKey key = new RegionKey(Math.floorDiv((int) renderX, SIZE), Math.floorDiv((int) renderY, SIZE));
                 // todo if loading at low zoom, only render downsampled version to save memory
-                RegionAtlasTexture texture = mapCache.getTexture(key);
+                RegionAtlasTexture texture = config.isBiomeOverlayEnabled() ? mapCache.getBiomeTexture(key) : mapCache.getTexture(key);
                 if (texture != null) {
                     renderers.add(texture.draw(guiGraphics, renderX - (float) this.x, renderY - (float) this.y, scale));
                 }
@@ -344,6 +365,9 @@ public class MapScreen extends Screen {
                 if (editWaypointModal.getWaypoint() == waypoint && editWaypointModal.hasChanged()) {
                     continue;
                 }
+                if (!waypoint.visible()) {
+                    continue;
+                }
                 waypointByIcon.computeIfAbsent(waypoint.icon(), k -> new ArrayList<>()).add(waypoint);
             }
 
@@ -353,6 +377,7 @@ public class MapScreen extends Screen {
                     double x = waypoint.x() + 0.5;
                     double z = waypoint.z() + 0.5;
                     matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                    matrices.scale(waypointScale, waypointScale);
 
                     waypoint.render2D(guiGraphics);
                     matrices.popMatrix();
@@ -366,6 +391,7 @@ public class MapScreen extends Screen {
                     double x = waypoint.x() + 0.5;
                     double z = waypoint.z() + 0.5;
                     matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                    matrices.scale(waypointScale, waypointScale);
 
                     Font font = Minecraft.getInstance().font;
 
@@ -391,6 +417,7 @@ public class MapScreen extends Screen {
                 double x = waypoint.x() + 0.5;
                 double z = waypoint.z() + 0.5;
                 matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                matrices.scale(waypointScale, waypointScale);
                 waypoint.render(guiGraphics, colour);
                 matrices.scale(0.8f, 0.8f);
 
@@ -414,6 +441,7 @@ public class MapScreen extends Screen {
         if (targeting || newWaypointModal.isTargeting()) {
             matrices.pushMatrix();
             matrices.translate(mouseX, mouseY);
+            matrices.scale(waypointScale, waypointScale);
 
             Waypoint targetWaypoint = new Waypoint("", 0, 0, 0, targeting ? "target" : "waypoint", 0xFF0000);
             int transparency = newWaypointModal.isTargeting() ? 0x7F : 0xFF;
@@ -429,6 +457,7 @@ public class MapScreen extends Screen {
 
                 matrices.pushMatrix();
                 matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+                matrices.scale(waypointScale, waypointScale);
 
                 Waypoint targetWaypoint = new Waypoint("", 0, 0, 0, "waypoint", newWaypointModal.getPreviewColour());
                 targetWaypoint.render2D(guiGraphics);
@@ -443,6 +472,7 @@ public class MapScreen extends Screen {
             double x = hoveredWaypoint.x() + 0.5;
             double z = hoveredWaypoint.z() + 0.5;
             matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
+            matrices.scale(waypointScale, waypointScale);
 
             guiGraphics.blit(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath("civmodern", "map/focus.png"), -8, -8, 0, 0, 16, 16, 16, 16, -1);
 
@@ -467,6 +497,7 @@ public class MapScreen extends Screen {
                 double z = editWaypointModal.getZ() + 0.5;
                 matrices.translate((float) ((x - this.x) / scale), (float) ((z - this.y) / scale));
             }
+            matrices.scale(waypointScale, waypointScale);
 
             Waypoint targetWaypoint = new Waypoint("", 0, 0, 0, editWaypointModal.getWaypoint().icon(), editWaypointModal.getPreviewColour());
             if (editWaypointModal.getPreviewColour() != editWaypointModal.getColour()) {
@@ -572,7 +603,31 @@ public class MapScreen extends Screen {
             if (!lines.isEmpty()) {
                 guiGraphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
             }
+        } else if (config.isBiomeOverlayEnabled() && hoveredWaypoint == null && !newWaypointModal.isVisible()
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
+            Component tooltip = biomeTooltip(mouseBlockX, mouseBlockY);
+            if (tooltip != null) {
+                guiGraphics.setComponentTooltipForNextFrame(font, List.of(tooltip), mouseX, mouseY);
+            }
         }
+    }
+
+    /**
+     * The biome's own vanilla translation ("biome.minecraft.plains"), so a datapack biome with its
+     * own lang entry resolves correctly too. {@code null} where nothing is recorded there
+     * ({@link MapCache#biomeNameAt} already folds "legacy region" and "not yet loaded" together),
+     * so both simply show no tooltip.
+     */
+    private Component biomeTooltip(int blockX, int blockZ) {
+        String biomeName = mapCache.biomeNameAt(blockX, blockZ);
+        if (biomeName == null) {
+            return null;
+        }
+        int colon = biomeName.indexOf(':');
+        if (colon < 0) {
+            return Component.literal(biomeName);
+        }
+        return Component.translatable("biome." + biomeName.substring(0, colon) + "." + biomeName.substring(colon + 1));
     }
 
     @Override
@@ -682,10 +737,21 @@ public class MapScreen extends Screen {
         return false;
     }
 
+    /**
+     * How much smaller than their native size waypoint icons/labels are currently drawn,
+     * per {@link CivMapConfig#getWaypointBaseZoom()}/{@link CivMapConfig#getWaypointZoomLogBase()}.
+     * Shared by render() (to scale the drawing) and mouseMoved() (to scale the hitbox to match).
+     */
+    private float waypointScale() {
+        float zoomSteps = (float) (Math.log(zoom / config.getWaypointBaseZoom()) / Math.log(config.getWaypointZoomLogBase()));
+        return 1f / (1f + Math.max(0f, zoomSteps));
+    }
+
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
         Window window = Minecraft.getInstance().getWindow();
         float scale = (float) window.getGuiScale() * zoom;
+        float waypointScale = waypointScale();
 
         List<Waypoint> waypointList = waypoints.getWaypoints();
         Waypoint closest = null;
@@ -693,6 +759,9 @@ public class MapScreen extends Screen {
         double mouseWorldY = (mouseY * scale + y);
         hoveredWaypoint = null;
         for (Waypoint waypoint : waypointList) {
+            if (!waypoint.visible()) {
+                continue;
+            }
             if (closest == null) {
                 closest = waypoint;
             } else if (Math.abs(waypoint.x() - mouseWorldX) + Math.abs(waypoint.z() - mouseWorldY) < Math.abs(closest.x() - mouseWorldX) + Math.abs(closest.z() - mouseWorldY)) {
@@ -702,7 +771,8 @@ public class MapScreen extends Screen {
         if (closest != null) {
             double offsetX = (closest.x() + 0.5 - mouseWorldX) / scale;
             double offsetY = (closest.z() + 0.5 - mouseWorldY) / scale;
-            if (Math.abs(offsetX) < 8 && Math.abs(offsetY) < 8) {
+            double hitboxHalfSize = 8 * waypointScale;
+            if (Math.abs(offsetX) < hitboxHalfSize && Math.abs(offsetY) < hitboxHalfSize) {
                 hoveredWaypoint = closest;
             }
         }
@@ -719,7 +789,7 @@ public class MapScreen extends Screen {
             return true;
         }
 
-        if (scrollDir < 0 && zoom < 32) {
+        if (scrollDir < 0 && zoom < config.getMaxZoom()) {
             // zoom out
             Window window = Minecraft.getInstance().getWindow();
             float scale = (float) window.getGuiScale() * zoom;
@@ -773,7 +843,8 @@ public class MapScreen extends Screen {
             return true;
         }
 
-        if (button == 0 || button == 1) {
+        // While boating, right-click places route points rather than panning - see mouseClicked.
+        if (button == 0 || (button == 1 && !boating)) {
             double scale = Minecraft.getInstance().getWindow().getGuiScale() * zoom;
             this.x -= changeX * scale;
             this.y -= changeY * scale;

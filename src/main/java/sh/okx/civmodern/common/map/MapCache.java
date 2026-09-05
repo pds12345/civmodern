@@ -36,6 +36,10 @@ public class MapCache {
 
     // maybe downsample texture atlases? rendering a full civmc map is >1GB of VRAM
     private final Map<RegionKey, RegionAtlasTexture> textureCache = new ConcurrentHashMap<>();
+    // Populated lazily, one atlas at a time, the first time the biome overlay is drawn over it -
+    // most players never toggle it on, and this is a second full-size atlas texture per entry.
+    private final Map<RegionKey, RegionAtlasTexture> biomeTextureCache = new ConcurrentHashMap<>();
+    private final Set<RegionKey> gettingBiomeAtlas = new HashSet<>();
     private final Map<RegionKey, RegionReference> cache = new ConcurrentHashMap<>();
 
     // Prevents regions that have recently been updated from being GCed
@@ -123,6 +127,33 @@ public class MapCache {
         }
     }
 
+    /**
+     * The registry name of the biome recorded at this block, or {@code null} when the region isn't
+     * loaded. Reads the biome id straight out of the packed per-block data already kept for map
+     * colouring ({@link RegionMapUpdater}), so this costs no extra storage. Regions saved before
+     * biome tracking existed, and blocks where the biome byte was never set, both resolve to
+     * {@link IdLookup}'s default lookup - id {@code 0} is never assigned to a real biome (see
+     * {@link IdLookup#getOrCreateId}) - which callers treat as "no biome data here".
+     */
+    public String biomeNameAt(int x, int z) {
+        RegionKey key = getRegionKey(x, z);
+        RegionReference ref = addReference(key);
+        try {
+            int[] mapData = ref.getLoader().getOrLoadMapData();
+            if (mapData == null) {
+                return null;
+            }
+            int packed = mapData[Math.floorMod(z, 512) + Math.floorMod(x, 512) * 512];
+            int biomeId = packed & 0xFF;
+            if (biomeId == 0) {
+                return null;
+            }
+            return biomeLookup.getName(biomeId);
+        } finally {
+            ref.removeReference();
+        }
+    }
+
     public void updateChunk(LevelChunk chunk) {
         ChunkPos pos = chunk.getPos();
         int regionX = pos.getRegionX();
@@ -150,10 +181,14 @@ public class MapCache {
                     boolean[] renderEastSouth = new boolean[2];
                     boolean updated = updater.updateChunk(chunk.getLevel().registryAccess(), chunk, renderEastSouth);
 
+                    // Null wherever the overlay has never been shown over this atlas, which skips
+                    // the biome pass in RegionRenderer entirely rather than rendering unseen work.
+                    RegionAtlasTexture biomeTex = this.biomeTextureCache.get(atlas);
+
                     boolean shouldRender = loader.render();
                     if (shouldRender) {
                         RegionRenderer renderer = new RegionRenderer(loader, blockLookup, biomeLookup);
-                        renderer.render(tex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1);
+                        renderer.render(tex, biomeTex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1);
                     }
                     if (updated) {
                         reference.markDirty();
@@ -161,12 +196,12 @@ public class MapCache {
                             int regionLocalX = pos.getRegionLocalX();
                             int regionLocalZ = pos.getRegionLocalZ();
                             RegionRenderer renderer = new RegionRenderer(loader, blockLookup, biomeLookup);
-                            renderer.renderChunk(tex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1, regionLocalX, regionLocalZ);
+                            renderer.renderChunk(tex, biomeTex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1, regionLocalX, regionLocalZ);
                             if (regionLocalX < 31 && renderEastSouth[0]) {
-                                renderer.render(tex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1, (regionLocalX + 1) * 16, (regionLocalX + 1) * 16 + 1, regionLocalZ * 16, regionLocalZ * 16 + 16);
+                                renderer.render(tex, biomeTex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1, (regionLocalX + 1) * 16, (regionLocalX + 1) * 16 + 1, regionLocalZ * 16, regionLocalZ * 16 + 16);
                             }
                             if (regionLocalZ < 31 && renderEastSouth[1]) {
-                                renderer.render(tex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1, regionLocalX * 16, regionLocalX * 16 + 16, (regionLocalZ + 1) * 16, (regionLocalZ + 1) * 16 + 1);
+                                renderer.render(tex, biomeTex, region.x() & ATLAS_LENGTH - 1, region.z() & ATLAS_LENGTH - 1, regionLocalX * 16, regionLocalX * 16 + 16, (regionLocalZ + 1) * 16, (regionLocalZ + 1) * 16 + 1);
                             }
                         }
                     }
@@ -246,6 +281,36 @@ public class MapCache {
         return texture;
     }
 
+    /**
+     * The biome overlay texture for this atlas, or {@code null} while it's still being rendered.
+     * Mirrors {@link #getTexture}: the same distance-ordered {@link #enqueue} pipeline renders both
+     * textures for a region in one pass once both exist, so backfilling the biome texture for an
+     * atlas that's already fully loaded (terrain-wise) reuses the exact same regions/queue.
+     */
+    public RegionAtlasTexture getBiomeTexture(RegionKey atlas) {
+        RegionAtlasTexture texture = this.biomeTextureCache.get(atlas);
+        if (texture == null) {
+            if (gettingBiomeAtlas.add(atlas)) {
+                for (int x = 0; x < ATLAS_LENGTH; x++) {
+                    for (int z = 0; z < ATLAS_LENGTH; z++) {
+                        RegionKey region = new RegionKey(atlas.x() << ATLAS_BITS | x, atlas.z() << ATLAS_BITS | z);
+                        if (availableRegions.contains(region)) {
+                            this.biomeTextureCache.computeIfAbsent(atlas, k -> {
+                                RegionAtlasTexture tex = new RegionAtlasTexture();
+                                tex.init();
+                                return tex;
+                            });
+                            enqueue(region);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        return texture;
+    }
+
     private void enqueue(RegionKey region) {
         this.addReference(region);
         queue.add(region);
@@ -257,8 +322,9 @@ public class MapCache {
             RegionReference reference = Objects.requireNonNull(cache.get(poll));
             try {
                 // TODO fully get rid of banding, this is only a partial solution
+                RegionKey pollAtlas = new RegionKey(poll.x() >> ATLAS_BITS, poll.z() >> ATLAS_BITS);
                 RegionRenderer renderer = new RegionRenderer(reference.getLoader(), blockLookup, biomeLookup);
-                renderer.render(this.textureCache.get(new RegionKey(poll.x() >> ATLAS_BITS, poll.z() >> ATLAS_BITS)), poll.x() & ATLAS_LENGTH - 1, poll.z() & ATLAS_LENGTH - 1);
+                renderer.render(this.textureCache.get(pollAtlas), this.biomeTextureCache.get(pollAtlas), poll.x() & ATLAS_LENGTH - 1, poll.z() & ATLAS_LENGTH - 1);
             } finally {
                 reference.removeReference();
             }
@@ -301,6 +367,9 @@ public class MapCache {
 
     public void free() {
         for (RegionAtlasTexture atlas : this.textureCache.values()) {
+            atlas.delete();
+        }
+        for (RegionAtlasTexture atlas : this.biomeTextureCache.values()) {
             atlas.delete();
         }
     }

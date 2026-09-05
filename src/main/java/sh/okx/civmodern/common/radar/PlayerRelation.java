@@ -3,7 +3,9 @@ package sh.okx.civmodern.common.radar;
 /** How a player is marked for radar name colouring. Unlisted players behave the same as NEUTRAL. */
 public enum PlayerRelation {
     FRIENDLY(0xFF55FF55),
+    CORDIAL(0xFF00FFFF),
     NEUTRAL(-1),
+    SUSPICIOUS(0xFFFFA500),
     HOSTILE(0xFFFF5555);
 
     private final int colour;

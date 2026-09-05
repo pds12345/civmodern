@@ -13,6 +13,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
+import sh.okx.civmodern.common.map.BiomeColoursConfig;
 import sh.okx.civmodern.common.map.ColoursConfig;
 import sh.okx.civmodern.common.map.IdLookup;
 import sh.okx.civmodern.common.map.RegionAtlasTexture;
@@ -39,17 +40,17 @@ public class RegionRenderer {
     }
 
 
-    public void renderChunk(RegionAtlasTexture texture, int rx, int rz, int chunkX, int chunkZ) {
-        render(texture, rx, rz, chunkX * 16, chunkX * 16 + 16, chunkZ * 16, chunkZ * 16 + 16);
+    public void renderChunk(RegionAtlasTexture texture, RegionAtlasTexture biomeTexture, int rx, int rz, int chunkX, int chunkZ) {
+        render(texture, biomeTexture, rx, rz, chunkX * 16, chunkX * 16 + 16, chunkZ * 16, chunkZ * 16 + 16);
     }
 
-    public void render(RegionAtlasTexture texture, int rx, int rz) {
+    public void render(RegionAtlasTexture texture, RegionAtlasTexture biomeTexture, int rx, int rz) {
         long start;
         if (perf) {
             start = System.nanoTime();
         }
 
-        render(texture, rx, rz, 0, 512, 0, 512);
+        render(texture, biomeTexture, rx, rz, 0, 512, 0, 512);
 
         if (perf) {
             count.incrementAndGet();
@@ -57,17 +58,25 @@ public class RegionRenderer {
         }
     }
 
-    public void render(RegionAtlasTexture texture, int rx, int rz, int minX, int maxX, int minZ, int maxZ) {
+    /**
+     * Renders the terrain tile as before, and - only when {@code biomeTexture} is non-null - the
+     * biome overlay tile alongside it in the same pass, reusing the per-pixel biome id the terrain
+     * pass already unpacks. {@code biomeTexture} is left null wherever nobody has toggled the
+     * overlay on for this atlas, so the second array and its GPU upload are skipped entirely.
+     */
+    public void render(RegionAtlasTexture texture, RegionAtlasTexture biomeTexture, int rx, int rz, int minX, int maxX, int minZ, int maxZ) {
         try {
             this.loader.getRenderLock().lock();
 
             int[] data = this.loader.getOrLoadMapData();
 
             short[] colours = new short[(maxX - minX) * (maxZ - minZ)];
+            short[] biomeColours = biomeTexture != null ? new short[colours.length] : null;
             int ptr = 0;
 
             Int2IntMap blockCache = new Int2IntOpenHashMap();
             Int2IntMap biomeCache = new Int2IntOpenHashMap();
+            Int2IntMap biomeOverlayCache = new Int2IntOpenHashMap();
 
             // todo fix
             RegistryAccess registryAccess = Minecraft.getInstance().player.level().registryAccess();
@@ -137,27 +146,62 @@ public class RegionRenderer {
                         color = blend(color, (double) alpha / 0xFF);
                     }
 
-                    int red = color >>> 16 & 0xFF;
-                    int green = color >>> 8 & 0xFF;
-                    int blue = color & 0xFF;
+                    if (biomeColours != null) {
+                        int overlayColor;
+                        if (biomeId == 0) {
+                            // Never a real biome (see MapCache#biomeNameAt) - nothing was recorded
+                            // here, so fall back to the terrain colour desaturated rather than a
+                            // colour that would claim to know this ground's biome.
+                            overlayColor = greyscale(color);
+                        } else {
+                            int tint = biomeOverlayCache.getOrDefault(biomeId, -1);
+                            if (tint == -1) {
+                                tint = BiomeColoursConfig.colourFor(biomeLookup.getName(biomeId), biomeId);
+                                biomeOverlayCache.put(biomeId, tint);
+                            }
+                            overlayColor = alpha != 0 ? blend(tint, (double) alpha / 0xFF) : tint;
+                        }
+                        biomeColours[ptr] = toRgb565(overlayColor);
+                    }
 
-                    short rgb565 = 0;
-                    rgb565 |= (red >>> 3) << 11;
-                    rgb565 |= (green >>> 2) << 5;
-                    rgb565 |= (blue >>> 3);
-
-                    colours[ptr++] = rgb565;
+                    colours[ptr++] = toRgb565(color);
                 }
             }
 
             if (RenderSystem.isOnRenderThread()) {
                 texture.update(colours, rx, rz, minX, maxX, minZ, maxZ);
+                if (biomeTexture != null) {
+                    biomeTexture.update(biomeColours, rx, rz, minX, maxX, minZ, maxZ);
+                }
             } else {
-                RenderQueue.queue(() -> texture.update(colours, rx, rz, minX, maxX, minZ, maxZ));
+                RenderQueue.queue(() -> {
+                    texture.update(colours, rx, rz, minX, maxX, minZ, maxZ);
+                    if (biomeTexture != null) {
+                        biomeTexture.update(biomeColours, rx, rz, minX, maxX, minZ, maxZ);
+                    }
+                });
             }
         } finally {
             this.loader.getRenderLock().unlock();
         }
+    }
+
+    private static short toRgb565(int color) {
+        int red = color >>> 16 & 0xFF;
+        int green = color >>> 8 & 0xFF;
+        int blue = color & 0xFF;
+
+        short rgb565 = 0;
+        rgb565 |= (red >>> 3) << 11;
+        rgb565 |= (green >>> 2) << 5;
+        rgb565 |= (blue >>> 3);
+        return rgb565;
+    }
+
+    /** Desaturates a colour to its perceptual luma, so detail (water vs. land, structures) survives. */
+    private static int greyscale(int color) {
+        int y = (int) (0.299 * red(color) + 0.587 * green(color) + 0.114 * blue(color));
+        return y << 16 | y << 8 | y;
     }
 
     public static int blend(int color1, double a0) {

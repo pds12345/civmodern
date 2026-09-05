@@ -221,9 +221,8 @@ public class WorldListener {
         this.minimap = null;
         this.cache = null;
         this.nodes = null;
-        if (this.waypoints != null) {
-            this.waypoints.save();
-        }
+        // Waypoints write through to the database on every mutation now, so there is nothing
+        // left to flush here.
         this.playerWaypoints = null;
         this.waypoints = null;
         if (this.playerRelations != null) {

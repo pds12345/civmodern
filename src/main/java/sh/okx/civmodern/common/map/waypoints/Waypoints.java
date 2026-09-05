@@ -46,7 +46,7 @@ public class Waypoints {
                 ResultSet resultSet = statement.executeQuery("SELECT name, x, y, z, icon, colour, visible FROM waypoints");
 
                 while (resultSet.next()) {
-                    this.addWaypoint(new Waypoint(
+                    this.putInMemory(new Waypoint(
                         resultSet.getString("name"),
                         resultSet.getInt("x"),
                         resultSet.getInt("y"),
@@ -62,64 +62,64 @@ public class Waypoints {
         }
     }
 
-    public void save() {
-        synchronized (this.connection) {
-            try {
-                this.connection.setAutoCommit(false);
-                try (PreparedStatement statement = connection.prepareStatement(
-                         "INSERT INTO waypoints (name, x, y, z, icon, colour, visible) VALUES (?, ?, ?, ?, ?, ?, ?) "
-                             + "ON CONFLICT DO UPDATE SET name = ?, icon = ?, colour = ?, visible = ?");
-                     Statement delete = connection.createStatement()) {
-                    delete.executeUpdate("DELETE FROM waypoints");
-                    for (Int2ObjectMap<Int2ObjectMap<Waypoint>> zEntry : waypoints.values()) {
-                        for (Int2ObjectMap<Waypoint> yEntry : zEntry.values()) {
-                            for (Waypoint waypoint : yEntry.values()) {
-                                statement.setString(1, waypoint.name());
-                                statement.setInt(2, waypoint.x());
-                                statement.setInt(3, waypoint.y());
-                                statement.setInt(4, waypoint.z());
-                                statement.setString(5, "waypoint");
-                                statement.setInt(6, waypoint.colour());
-                                statement.setBoolean(7, waypoint.visible());
-                                statement.setString(8, waypoint.name());
-                                statement.setString(9, "waypoint");
-                                statement.setInt(10, waypoint.colour());
-                                statement.setBoolean(11, waypoint.visible());
-                                statement.addBatch();
-                            }
-                        }
-                    }
+    private void putInMemory(Waypoint waypoint) {
+        this.waypoints.computeIfAbsent(waypoint.x(), k -> new Int2ObjectOpenHashMap<>())
+            .computeIfAbsent(waypoint.z(), k -> new Int2ObjectOpenHashMap<>())
+            .put(waypoint.y(), waypoint);
+    }
 
-                    statement.executeBatch();
-                }
-                this.connection.commit();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    this.connection.setAutoCommit(true);
-                } catch (SQLException e) {
-                }
+    private void removeFromMemory(Waypoint waypoint) {
+        Int2ObjectMap<Int2ObjectMap<Waypoint>> wx = this.waypoints.get(waypoint.x());
+        if (wx != null) {
+            Int2ObjectMap<Waypoint> wz = wx.get(waypoint.z());
+            if (wz != null) {
+                wz.remove(waypoint.y());
             }
         }
     }
 
+    /** Adds/updates the waypoint in memory and writes it through to the database immediately. */
     public void addWaypoint(Waypoint waypoint) {
-        this.waypoints.computeIfAbsent(waypoint.x(), k -> new Int2ObjectOpenHashMap<>())
-            .computeIfAbsent(waypoint.z(), k -> new Int2ObjectOpenHashMap<>())
-            .put(waypoint.y(), waypoint);
+        putInMemory(waypoint);
+
+        synchronized (this.connection) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO waypoints (name, x, y, z, icon, colour, visible) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                    + "ON CONFLICT DO UPDATE SET name = ?, icon = ?, colour = ?, visible = ?")) {
+                statement.setString(1, waypoint.name());
+                statement.setInt(2, waypoint.x());
+                statement.setInt(3, waypoint.y());
+                statement.setInt(4, waypoint.z());
+                statement.setString(5, waypoint.icon());
+                statement.setInt(6, waypoint.colour());
+                statement.setBoolean(7, waypoint.visible());
+                statement.setString(8, waypoint.name());
+                statement.setString(9, waypoint.icon());
+                statement.setInt(10, waypoint.colour());
+                statement.setBoolean(11, waypoint.visible());
+                statement.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public void setVisible(Waypoint waypoint, boolean visible) {
         addWaypoint(new Waypoint(waypoint.name(), waypoint.x(), waypoint.y(), waypoint.z(), waypoint.icon(), waypoint.colour(), visible));
     }
 
+    /** Removes the waypoint from memory and deletes it from the database immediately. */
     public void removeWaypoint(Waypoint waypoint) {
-        Int2ObjectMap<Int2ObjectMap<Waypoint>> wx = this.waypoints.get(waypoint.x());
-        if (wx != null) {
-            Int2ObjectMap<Waypoint> wz = wx.get(waypoint.z());
-            if (wz != null) {
-                wz.remove(waypoint.y());
+        removeFromMemory(waypoint);
+
+        synchronized (this.connection) {
+            try (PreparedStatement statement = connection.prepareStatement("DELETE FROM waypoints WHERE x = ? AND y = ? AND z = ?")) {
+                statement.setInt(1, waypoint.x());
+                statement.setInt(2, waypoint.y());
+                statement.setInt(3, waypoint.z());
+                statement.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
             }
         }
     }

@@ -71,7 +71,7 @@ Mostly accessors and hooks where no fabric event exists (chat, inventory, item s
 render setup). Prefer the event bus / fabric-api events when one covers the need.
 
 **Keybindings** (all in the `civmodern` category, rebindable): `R` config, `M` map,
-keypad-`/` minimap zoom cycle, `Backspace` ice-road macro, `0` auto-attack, `-`/`=`
+`Z` minimap zoom cycle, `Backspace` ice-road macro, `0` auto-attack, `-`/`=`
 hold left/right click. A saved binding in `options.txt` overrides the code default.
 
 **Lang**: `assets/civmodern/lang/en_us.json` is run through Gradle `processResources`

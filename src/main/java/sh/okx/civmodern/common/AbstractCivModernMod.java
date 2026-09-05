@@ -115,7 +115,7 @@ public abstract class AbstractCivModernMod {
         this.minimapZoomBinding = new KeyMapping(
             "key.civmodern.minimapzoom",
             Type.KEYSYM,
-            GLFW.GLFW_KEY_KP_DIVIDE,
+            GLFW.GLFW_KEY_Z,
             CIVMODERN_CATEGORY
         );
         this.newWaypointBinding = new KeyMapping(

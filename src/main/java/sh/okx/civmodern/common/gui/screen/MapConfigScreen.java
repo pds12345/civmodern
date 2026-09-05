@@ -2,6 +2,7 @@ package sh.okx.civmodern.common.gui.screen;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Renderable;
@@ -10,7 +11,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import org.jetbrains.annotations.NotNull;
+import net.minecraft.util.Mth;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
@@ -22,22 +23,48 @@ import sh.okx.civmodern.common.gui.widget.HsbColourPicker;
 import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.gui.widget.TextRenderable;
 import sh.okx.civmodern.common.gui.widget.ToggleButton;
-import sh.okx.civmodern.common.mixins.ScreenAccessor;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public class MapConfigScreen extends AbstractConfigScreen {
 
     public static final Identifier ROLLBACK_ICON = Identifier.fromNamespaceAndPath("civmodern", "gui/rollback.png");
-    private int chevronColourY;
+    private static final int SCROLL_STEP = 20;
+    private static final int VIEWPORT_BOTTOM_MARGIN = 6;
 
     private final ColourProvider colourProvider;
 
     // for passing move events
     private HsbColourPicker chevronPicker;
     private HsbColourPicker borderPicker;
+
+    /** Everything between the header and the Done button - scrollable, and clipped to the viewport. */
+    private final List<Renderable> bodyWidgets = new ArrayList<>();
+    /** Repositioning info for the same widgets, so scrolling moves them without rebuilding them. */
+    private final List<BodyEntry> bodyEntries = new ArrayList<>();
+    /** The header and Done button - always visible, never scrolled or clipped. */
+    private final List<Renderable> chromeWidgets = new ArrayList<>();
+
+    /**
+     * A widget or label positioned at some unscrolled Y, and how to move it. Repositioning
+     * existing instances - rather than rebuilding on every scroll tick - matters specifically for
+     * {@link HsbColourPicker}: it allocates GPU textures in its constructor and only releases them
+     * via an explicit {@link HsbColourPicker#close()}, so recreating it on each scroll tick either
+     * leaks those textures or fails outright once a name collides.
+     */
+    private record BodyEntry(int naturalY, IntConsumer reposition) {
+    }
+
+    private double scrollAmount = 0;
+    private int viewportTop;
+    private int viewportBottom;
+    /** The natural (unscrolled) Y just past the last body row - i.e. total content height. */
+    private int contentBottom;
 
     public MapConfigScreen(ColourProvider colourProvider, CivMapConfig config, Screen parent) {
         super(config, parent, Component.translatable("civmodern.screen.map.title"));
@@ -47,18 +74,32 @@ public class MapConfigScreen extends AbstractConfigScreen {
     @Override
     protected void init() {
         super.init();
+        this.bodyWidgets.clear();
+        this.bodyEntries.clear();
+        this.chromeWidgets.clear();
+
+        this.chromeWidgets.add(addRenderableOnly(new TextRenderable.CentreAligned(
+            this.font,
+            this.centreX,
+            getHeaderY(),
+            this.title
+        )));
+
         int left = this.width / 2 - 155;
         int centre = left + 80;
         int right = left + 160;
-        int offset = this.height / 6 - 18;
-        addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.minimap"), this.config::isMinimapEnabled, this.config::setMinimapEnabled, null, ToggleButton.DEFAULT_NARRATION));
-        addRenderableWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.mapping"), this.config::isMappingEnabled, this.config::setMappingEnabled, null, ToggleButton.DEFAULT_NARRATION));
+
+        this.viewportTop = this.height / 6 - 18;
+        int offset = this.viewportTop - (int) this.scrollAmount;
+
+        addBodyWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.minimap"), this.config::isMinimapEnabled, this.config::setMinimapEnabled, null, ToggleButton.DEFAULT_NARRATION));
+        addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.mapping"), this.config::isMappingEnabled, this.config::setMappingEnabled, null, ToggleButton.DEFAULT_NARRATION));
         offset += 24;
-        addRenderableWidget(Button.builder(Component.translatable("civmodern.screen.radar.alignment", config.getMinimapAlignment().toString()), button -> {
+        addBodyWidget(Button.builder(Component.translatable("civmodern.screen.radar.alignment", config.getMinimapAlignment().toString()), button -> {
             config.setMinimapAlignment(config.getMinimapAlignment().next());
             button.setMessage(Component.translatable("civmodern.screen.radar.alignment", config.getMinimapAlignment().toString()));
         }).pos(left, offset).size(150, 20).build());
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 25, 250, new DoubleValue() {
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 25, 250, new DoubleValue() {
             @Override
             public double get() {
                 return config.getMinimapSize();
@@ -76,7 +117,7 @@ public class MapConfigScreen extends AbstractConfigScreen {
             }
         }));
         offset += 24;
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0, 300, new DoubleValue() {
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0, 300, new DoubleValue() {
 
             @Override
             public double get() {
@@ -93,7 +134,7 @@ public class MapConfigScreen extends AbstractConfigScreen {
                 return Component.translatable("civmodern.screen.map.x", String.valueOf((int) value));
             }
         }));
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 0, 300, new DoubleValue() {
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 0, 300, new DoubleValue() {
 
             @Override
             public double get() {
@@ -111,24 +152,25 @@ public class MapConfigScreen extends AbstractConfigScreen {
             }
         }));
         offset += 24;
-        addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.coords"), this.config::isShowMinimapCoords, this.config::setShowMinimapCoords, null, ToggleButton.DEFAULT_NARRATION));
-        addRenderableWidget(Button.builder(Component.translatable("civmodern.screen.map.mobs"), button -> {
+        addBodyWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.coords"), this.config::isShowMinimapCoords, this.config::setShowMinimapCoords, null, ToggleButton.DEFAULT_NARRATION));
+        addBodyWidget(Button.builder(Component.translatable("civmodern.screen.map.mobs"), button -> {
             Minecraft.getInstance().setScreen(new MinimapMobConfigScreen(config, this));
         }).pos(right, offset).size(150, 20).build());
+        offset += 24;
         Waypoints waypoints = AbstractCivModernMod.getInstance().getWorldListener().getWaypoints();
         Button managerButton = Button.builder(Component.translatable("civmodern.screen.map.waypointmanager"), button -> {
             if (waypoints != null) {
                 Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
             }
-        }).pos(right, offset).size(150, 20).build();
+        }).pos(centre, offset).size(150, 20).build();
         // Waypoints are per-world storage, so from the title screen there is nothing to manage.
         managerButton.active = waypoints != null;
         if (waypoints == null) {
             managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
         }
-        addRenderableWidget(managerButton);
+        addBodyWidget(managerButton);
         offset += 24;
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 100, 5000, new DoubleValue() {
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 100, 5000, new DoubleValue() {
             @Override
             public double get() {
                 return config.getWaypointRenderDistance();
@@ -145,7 +187,7 @@ public class MapConfigScreen extends AbstractConfigScreen {
                     Integer.toString((int) value));
             }
         }));
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 2, 32, new DoubleValue() {
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 2, 32, new DoubleValue() {
             @Override
             public double get() {
                 return config.getMaxZoom();
@@ -177,9 +219,6 @@ public class MapConfigScreen extends AbstractConfigScreen {
         addNumberInput("Minimap icon zoom log base", right, minimapScalingLabelY, offset, 1.01f, 20f,
             config::getMinimapIconZoomLogBase, config::setMinimapIconZoomLogBase);
         offset += 24;
-        chevronColourY = offset;
-
-        offset += 12;
 
         chevronPicker = addColourPicker("Chevron colour", left, offset, CivMapConfig.DEFAULT_CHEVRON_COLOUR, config::getChevronColour, config::setChevronColour,
             colourProvider::setTemporaryChevronColour);
@@ -187,15 +226,48 @@ public class MapConfigScreen extends AbstractConfigScreen {
         borderPicker = addColourPicker("Border colour", right, offset, CivMapConfig.DEFAULT_BORDER_COLOUR, config::getBorderColour, config::setBorderColour,
             colourProvider::setTemporaryBorderColour);
 
-        offset += 36;
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> {
+        offset += this.font.lineHeight + 2 + 20;
+
+        // scrollAmount was subtracted exactly once, at the very start - add it back to recover
+        // the natural (unscrolled) content height.
+        this.contentBottom = offset + (int) this.scrollAmount;
+
+        // Done must stay pinned to the fixed bottom margin regardless of content height now that
+        // overflow is handled by scrolling - getFooterY(contentBottom) would otherwise let it (and
+        // the viewport bottom derived from it) drift below the window whenever content overflows,
+        // which is exactly the case scrolling exists for.
+        int doneY = getFooterY(0);
+        this.viewportBottom = doneY - VIEWPORT_BOTTOM_MARGIN;
+
+        this.chromeWidgets.add(addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> {
             config.save();
             Minecraft.getInstance().setScreen(parent);
-        }).pos(centre, getFooterY(offset)).size(150, 20).build());
+        }).pos(centre, doneY).size(150, 20).build()));
+    }
+
+    private <T extends AbstractWidget> T addBodyWidget(T widget) {
+        T added = addRenderableWidget(widget);
+        this.bodyWidgets.add(added);
+        this.bodyEntries.add(new BodyEntry(added.getY() + (int) this.scrollAmount, added::setY));
+        return added;
+    }
+
+    private <T extends TextRenderable> T addBodyRenderableOnly(T renderable) {
+        T added = addRenderableOnly(renderable);
+        this.bodyWidgets.add(added);
+        this.bodyEntries.add(new BodyEntry(added.y + (int) this.scrollAmount, y -> added.y = y));
+        return added;
+    }
+
+    /** Moves every existing body widget to reflect the current scroll position, without rebuilding any of them. */
+    private void applyScroll() {
+        for (BodyEntry entry : this.bodyEntries) {
+            entry.reposition().accept(entry.naturalY() - (int) this.scrollAmount);
+        }
     }
 
     private void addNumberInput(String title, int x, int labelY, int y, float min, float max, Supplier<Float> valueGet, Consumer<Float> valueSet) {
-        addRenderableOnly(new TextRenderable.CentreAligned(
+        addBodyRenderableOnly(new TextRenderable.CentreAligned(
             this.font,
             x + 75,
             labelY,
@@ -215,20 +287,22 @@ public class MapConfigScreen extends AbstractConfigScreen {
             } catch (NumberFormatException ignored) {
             }
         });
-        addRenderableWidget(widget);
+        addBodyWidget(widget);
     }
 
-    private HsbColourPicker addColourPicker(String title, int x, int y, int defaultColour, Supplier<Integer> colourGet, Consumer<Integer> colourSet, Consumer<Integer> preview) {
+    private HsbColourPicker addColourPicker(String title, int x, int offsetY, int defaultColour, Supplier<Integer> colourGet, Consumer<Integer> colourSet, Consumer<Integer> preview) {
 
         int left = (x + 75) - (60 + 8 + 20 + 8 + 20) / 2;
 
-        addRenderableOnly(new TextRenderable.CentreAligned(
+        addBodyRenderableOnly(new TextRenderable.CentreAligned(
             this.font,
             left + 60,
-            chevronColourY,
+            offsetY,
             Component.literal(title)
         ));
-        EditBox widget = new EditBox(font, left, y, 60, 20, Component.empty());
+        int widgetY = offsetY + this.font.lineHeight + 2;
+
+        EditBox widget = new EditBox(font, left, widgetY, 60, 20, Component.empty());
         widget.setValue("#" + String.format("%06X", colourGet.get()));
         widget.setMaxLength(7);
         Pattern pattern = Pattern.compile("^(#[0-9A-F]{0,6})?$", Pattern.CASE_INSENSITIVE);
@@ -239,19 +313,19 @@ public class MapConfigScreen extends AbstractConfigScreen {
                 colourSet.accept(rgb);
             }
         });
-        addRenderableWidget(widget);
+        addBodyWidget(widget);
 
-        HsbColourPicker hsb = new HsbColourPicker(left + 60 + 8, y,
+        HsbColourPicker hsb = new HsbColourPicker(left + 60 + 8, widgetY,
             20, 20, colourGet.get(), colour -> {
             widget.setValue("#" + String.format("%06X", colour));
             colourSet.accept(colour);
         }, preview, this::closePickers);
-        addRenderableWidget(new ImageButton(left + 60 + 8 + 20 + 8, y, 20, 20, ROLLBACK_ICON, imbg -> {
+        addBodyWidget(new ImageButton(left + 60 + 8 + 20 + 8, widgetY, 20, 20, ROLLBACK_ICON, imbg -> {
             widget.setValue("#" + String.format("%06X", defaultColour));
             colourSet.accept(defaultColour);
             hsb.close();
         }));
-        addRenderableWidget(hsb);
+        addBodyWidget(hsb);
         return hsb;
     }
 
@@ -283,12 +357,30 @@ public class MapConfigScreen extends AbstractConfigScreen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 15, 0xffffffff);
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
+            return true;
+        }
+        double maxScroll = Math.max(0, this.contentBottom - this.viewportBottom);
+        double newScroll = Mth.clamp(this.scrollAmount - scrollY * SCROLL_STEP, 0, maxScroll);
+        if (newScroll != this.scrollAmount) {
+            this.scrollAmount = newScroll;
+            this.applyScroll();
+        }
+        return true;
+    }
 
+    @Override
+    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
         // Don't call super since we don't want the dark or blurred background to obscure changes to the radar
-        for (final Renderable renderable : ((ScreenAccessor) (Object) this).civmodern$getRenderables()) {
-            renderable.render(graphics, mouseX, mouseY, delta);
+        guiGraphics.enableScissor(0, this.viewportTop, this.width, this.viewportBottom);
+        for (final Renderable renderable : this.bodyWidgets) {
+            renderable.render(guiGraphics, mouseX, mouseY, delta);
+        }
+        guiGraphics.disableScissor();
+
+        for (final Renderable renderable : this.chromeWidgets) {
+            renderable.render(guiGraphics, mouseX, mouseY, delta);
         }
     }
 }

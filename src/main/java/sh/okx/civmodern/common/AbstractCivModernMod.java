@@ -1,6 +1,7 @@
 package sh.okx.civmodern.common;
 
 import com.google.common.eventbus.Subscribe;
+import com.google.common.eventbus.SubscriberExceptionHandler;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.InputConstants.Type;
 
@@ -11,6 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -73,7 +76,19 @@ public abstract class AbstractCivModernMod {
     private AutoNavigation autoNavigation;
     private NodeApiClient nodeApi;
 
-    public final EventBus eventBus = new EventBus("CivModernEvents");
+    /**
+     * Guava swallows exceptions thrown by subscribers and logs them through java.util.logging,
+     * which does not reach latest.log, so a failing handler used to vanish without trace. Route
+     * them through log4j instead, with the stack trace and which handler/event was involved.
+     */
+    private static final SubscriberExceptionHandler EVENT_EXCEPTION_HANDLER = (exception, context) -> LOGGER.error(
+        "Unhandled exception in event handler {}#{} for {}",
+        context.getSubscriber().getClass().getSimpleName(),
+        context.getSubscriberMethod().getName(),
+        context.getEvent().getClass().getSimpleName(),
+        exception);
+
+    public final EventBus eventBus = new EventBus(EVENT_EXCEPTION_HANDLER);
 
     public AbstractCivModernMod() {
         this.configBinding = new KeyMapping(
@@ -205,9 +220,7 @@ public abstract class AbstractCivModernMod {
             if (!InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)) {
                 this.worlds.getWaypoints().setTarget(waypoint);
             } else {
-                MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints());
-                screen.setNewWaypoint(waypoint);
-                Minecraft.getInstance().setScreen(screen);
+                openMap(screen -> screen.setNewWaypoint(waypoint));
             }
             return 0;
         })));
@@ -259,17 +272,51 @@ public abstract class AbstractCivModernMod {
         }
     }
 
+    /**
+     * Opens one of our screens from a tick/command handler. {@code Minecraft.setScreen} installs
+     * the screen before calling its {@code init()}, so if construction or init throws, the
+     * exception is swallowed by the event bus and a half-built screen is left in place - which
+     * then crashes the game on the very next frame with an NPE deep in render(). Catch it here,
+     * log it, tear the screen down and tell the player, so the game survives and the real
+     * cause lands in latest.log.
+     */
+    public void openScreen(String name, Supplier<Screen> factory) {
+        Minecraft mc = Minecraft.getInstance();
+        try {
+            mc.setScreen(factory.get());
+        } catch (RuntimeException e) {
+            LOGGER.error("Failed to open the {} screen; closing it so the game can continue", name, e);
+            try {
+                mc.setScreen(null);
+            } catch (RuntimeException e2) {
+                LOGGER.error("Also failed to close the half-built {} screen", name, e2);
+            }
+            if (mc.player != null) {
+                mc.player.displayClientMessage(Component.translatable("civmodern.screen.openfailed", name), false);
+            }
+        }
+    }
+
+    private void openMap(Consumer<MapScreen> setup) {
+        if (worlds.getCache() == null) {
+            return;
+        }
+        openScreen("map", () -> {
+            MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints());
+            setup.accept(screen);
+            return screen;
+        });
+    }
+
     @Subscribe
     private void tick(
         final @NotNull ClientTickEvent event
     ) {
         while (this.configBinding.consumeClick()) {
-            Minecraft.getInstance().setScreen(newConfigGui(null));
+            openScreen("config", () -> newConfigGui(null));
         }
         while (mapBinding.consumeClick()) {
-            if (worlds.getCache() != null) {
-                Minecraft.getInstance().setScreen(new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints()));
-            }
+            openMap(screen -> {});
         }
         while (minimapZoomBinding.consumeClick()) {
             worlds.cycleMinimapZoom();
@@ -277,7 +324,7 @@ public abstract class AbstractCivModernMod {
         while (newWaypointBinding.consumeClick()) {
             LocalPlayer player = Minecraft.getInstance().player;
             if (player != null && worlds.getWaypoints() != null) {
-                Minecraft.getInstance().setScreen(new QuickWaypointScreen(worlds.getWaypoints()));
+                openScreen("quick waypoint", () -> new QuickWaypointScreen(worlds.getWaypoints()));
             }
         }
         while (minimapNodesBinding.consumeClick()) {

@@ -54,12 +54,16 @@ public class MapFolder {
 
             try (Statement statement = connection.createStatement()) {
                 statement.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT NOT NULL PRIMARY KEY, value BLOB)");
-                statement.execute("CREATE TABLE IF NOT EXISTS waypoints (name TEXT NOT NULL, x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, icon TEXT NOT NULL, colour INT NOT NULL, visible INT NOT NULL DEFAULT 1, UNIQUE (x, y, z))");
-                // Databases created before the visible column existed still have CREATE TABLE IF
-                // NOT EXISTS above as a no-op, so backfill it here; SQLite has no ADD COLUMN IF
-                // NOT EXISTS, so ignore the failure when the column is already there.
+                statement.execute("CREATE TABLE IF NOT EXISTS waypoints (name TEXT NOT NULL, x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, icon TEXT NOT NULL, colour INT NOT NULL, visible INT NOT NULL DEFAULT 1, column_visible INT NOT NULL DEFAULT 1, UNIQUE (x, y, z))");
+                // Databases created before the visible/column_visible columns existed still have
+                // CREATE TABLE IF NOT EXISTS above as a no-op, so backfill them here; SQLite has no
+                // ADD COLUMN IF NOT EXISTS, so ignore the failure when a column is already there.
                 try {
                     statement.execute("ALTER TABLE waypoints ADD COLUMN visible INT NOT NULL DEFAULT 1");
+                } catch (SQLException ignored) {
+                }
+                try {
+                    statement.execute("ALTER TABLE waypoints ADD COLUMN column_visible INT NOT NULL DEFAULT 1");
                 } catch (SQLException ignored) {
                 }
                 statement.execute("CREATE TABLE IF NOT EXISTS blocks (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");

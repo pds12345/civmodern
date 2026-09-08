@@ -338,7 +338,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             int x = Integer.parseInt(this.xBox.getValue());
             int y = Integer.parseInt(this.yBox.getValue());
             int z = Integer.parseInt(this.zBox.getValue());
-            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, "waypoint", this.colour, this.createVisible));
+            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, "waypoint", this.colour, this.createVisible, true));
             setVisible(false);
             if (this.onDone != null) {
                 this.onDone.run();

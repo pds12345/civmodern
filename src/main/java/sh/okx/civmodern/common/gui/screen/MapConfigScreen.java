@@ -205,6 +205,24 @@ public class MapConfigScreen extends AbstractConfigScreen {
             }
         }));
         offset += 24;
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0, 100, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getColumnOpacity();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setColumnOpacity((float) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.map.columnopacity",
+                    Integer.toString((int) value));
+            }
+        }));
+        offset += 24;
         int waypointScalingLabelY = offset;
         offset += 12;
         addNumberInput("Waypoint base zoom", left, waypointScalingLabelY, offset, 0.001f, 4f,

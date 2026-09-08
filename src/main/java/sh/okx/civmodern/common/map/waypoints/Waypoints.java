@@ -274,31 +274,30 @@ public class Waypoints {
         }
     }
 
-    // Nested-shell radii/alpha for the waypoint column - a hollow vertical box (bedrock to sky
-    // limit) around each waypoint's 1m cell, sized so the outer shell alone pokes just past that
-    // cell, letting it peek out beside an opaque wall the player is standing behind.
+    // Nested-shell radii for the waypoint column - a hollow vertical box (bedrock to sky limit)
+    // around each waypoint's 1m cell, sized so the outer shell alone pokes just past that cell,
+    // letting it peek out beside an opaque wall the player is standing behind. All three shells
+    // share one configured alpha; the nesting itself is what makes the centre read as more opaque.
     private static final float COLUMN_OUTER_HALF_WIDTH = 0.6f;
     private static final float COLUMN_MIDDLE_HALF_WIDTH = 0.4f;
     private static final float COLUMN_INNER_HALF_WIDTH = 0.25f;
-    private static final int COLUMN_OUTER_ALPHA = 20;
-    private static final int COLUMN_MIDDLE_ALPHA = 45;
-    private static final int COLUMN_INNER_ALPHA = 80;
 
     private void renderColumns(List<Waypoint> waypoints, PoseStack matrices, MultiBufferSource source, Vec3 pos, int minY, int maxY) {
         Matrix4f pose = matrices.last().pose();
         VertexConsumer buffer = source.getBuffer(CivModernRenderTypes.COLUMN);
         float bottom = (float) (minY - pos.y);
         float top = (float) (maxY - pos.y);
+        int alpha = (int) (AbstractCivModernMod.getInstance().getConfig().getColumnOpacity() / 100f * 255f);
         for (Waypoint waypoint : waypoints) {
             if (!waypoint.columnVisible()) {
                 continue;
             }
             float x = (float) (waypoint.x() + 0.5 - pos.x);
             float z = (float) (waypoint.z() + 0.5 - pos.z);
-            int colour = waypoint.colour() & 0xFFFFFF;
-            renderColumnShell(buffer, pose, x, bottom, top, z, COLUMN_OUTER_HALF_WIDTH, colour | (COLUMN_OUTER_ALPHA << 24));
-            renderColumnShell(buffer, pose, x, bottom, top, z, COLUMN_MIDDLE_HALF_WIDTH, colour | (COLUMN_MIDDLE_ALPHA << 24));
-            renderColumnShell(buffer, pose, x, bottom, top, z, COLUMN_INNER_HALF_WIDTH, colour | (COLUMN_INNER_ALPHA << 24));
+            int argb = (waypoint.colour() & 0xFFFFFF) | (alpha << 24);
+            renderColumnShell(buffer, pose, x, bottom, top, z, COLUMN_OUTER_HALF_WIDTH, argb);
+            renderColumnShell(buffer, pose, x, bottom, top, z, COLUMN_MIDDLE_HALF_WIDTH, argb);
+            renderColumnShell(buffer, pose, x, bottom, top, z, COLUMN_INNER_HALF_WIDTH, argb);
         }
     }
 

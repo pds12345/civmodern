@@ -283,6 +283,9 @@ public class Waypoints {
     private static final float COLUMN_INNER_HALF_WIDTH = 0.25f;
 
     private void renderColumns(List<Waypoint> waypoints, PoseStack matrices, MultiBufferSource source, Vec3 pos, int minY, int maxY) {
+        if (!AbstractCivModernMod.getInstance().getConfig().isColumnsEnabled()) {
+            return;
+        }
         Matrix4f pose = matrices.last().pose();
         VertexConsumer buffer = source.getBuffer(CivModernRenderTypes.COLUMN);
         float bottom = (float) (minY - pos.y);

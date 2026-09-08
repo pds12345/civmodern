@@ -222,6 +222,7 @@ public class MapConfigScreen extends AbstractConfigScreen {
                     Integer.toString((int) value));
             }
         }));
+        addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.columnsenabled"), config::isColumnsEnabled, config::setColumnsEnabled, null, ToggleButton.DEFAULT_NARRATION));
         offset += 24;
         int waypointScalingLabelY = offset;
         offset += 12;

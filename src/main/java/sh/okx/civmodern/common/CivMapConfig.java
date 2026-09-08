@@ -59,6 +59,7 @@ public class CivMapConfig {
     private boolean waypointRenderingEnabled;
     private int waypointRenderDistance;
     private float columnOpacity;
+    private boolean columnsEnabled;
     private float minimapZoom;
     private float waypointBaseZoom;
     private float waypointZoomLogBase;
@@ -120,6 +121,7 @@ public class CivMapConfig {
         // Percentage (0-100) applied to all three nested column shells alike - the nesting itself
         // is what makes the centre read as more opaque, not a per-shell value.
         this.columnOpacity = Float.parseFloat(properties.getProperty("column_opacity", "10"));
+        this.columnsEnabled = Boolean.parseBoolean(properties.getProperty("columns_enabled", "true"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
         // Zoom level (blocks per pixel) treated as "full size" for waypoint icons/labels, and the
         // log base controlling how gently they shrink as the map zooms out past it.
@@ -215,6 +217,7 @@ public class CivMapConfig {
             properties.setProperty("waypoint_rendering_enabled", Boolean.toString(waypointRenderingEnabled));
             properties.setProperty("waypoint_render_distance", Integer.toString(waypointRenderDistance));
             properties.setProperty("column_opacity", Float.toString(columnOpacity));
+            properties.setProperty("columns_enabled", Boolean.toString(columnsEnabled));
             properties.setProperty("minimap_zoom", Float.toString(minimapZoom));
             properties.setProperty("waypoint_base_zoom", Float.toString(waypointBaseZoom));
             properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
@@ -512,6 +515,15 @@ public class CivMapConfig {
 
     public void setColumnOpacity(float columnOpacity) {
         this.columnOpacity = columnOpacity;
+    }
+
+    /** Whether waypoint columns render at all, regardless of each waypoint's own column toggle. */
+    public boolean isColumnsEnabled() {
+        return columnsEnabled;
+    }
+
+    public void setColumnsEnabled(boolean columnsEnabled) {
+        this.columnsEnabled = columnsEnabled;
     }
 
     public float getMinimapZoom() {

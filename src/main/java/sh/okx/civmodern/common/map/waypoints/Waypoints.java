@@ -187,7 +187,7 @@ public class Waypoints {
             double y = waypoint.y() + 0.5 - pos.y;
             double z = waypoint.z() + 0.5 - pos.z;
             float distance = (float) Mth.length(x, y, z);
-            if (distance <= 1) {
+            if (distance <= 0.5f) {
                 continue;
             }
             matrices.pushPose();
@@ -224,7 +224,7 @@ public class Waypoints {
             double y = waypoint.y() + 0.5 - pos.y;
             double z = waypoint.z() + 0.5 - pos.z;
             float distance = (float) Mth.length(x, y, z);
-            if (distance <= 1) {
+            if (distance <= 0.5f) {
                 continue;
             }
             matrices.pushPose();
@@ -263,7 +263,7 @@ public class Waypoints {
 
     private float getTransparency(float distance, float clamp) {
         if (distance < 3) {
-            return Mth.clamp((distance - 1) / 2f, clamp, 1);
+            return Mth.clamp((distance - 0.5f) / 2.5f, clamp, 1);
         } else {
             return 1;
         }

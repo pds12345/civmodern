@@ -7,6 +7,7 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.animal.happyghast.HappyGhast;
 import net.minecraft.world.entity.animal.equine.AbstractHorse;
+import net.minecraft.world.entity.animal.nautilus.AbstractNautilus;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
@@ -19,7 +20,13 @@ import java.util.Deque;
 
 public class AutoNavigation {
 
+    // number of ticks to hold the jump key for a nautilus dash - holding for
+    // roughly 9-11 ticks (0.45-0.55s) yields the maximum charge (see
+    // AbstractNautilus#getPlayerJumpPendingScale / LocalPlayer#aiStep jump-riding logic)
+    private static final int DASH_CHARGE_TICKS = 10;
+
     private Deque<Vec2> destinations = new ArrayDeque<>();
+    private int dashChargeTicks = -1;
 
     public AutoNavigation(AbstractCivModernMod mod) {
         mod.eventBus.register(this);
@@ -38,8 +45,10 @@ public class AutoNavigation {
         mc.options.keyUp.setDown(false);
         mc.options.keyLeft.setDown(false);
         mc.options.keyRight.setDown(false);
+        mc.options.keyJump.setDown(false);
         this.destinations.clear();
         rotation = 0;
+        dashChargeTicks = -1;
     }
 
     private double rotation = 0;
@@ -59,7 +68,8 @@ public class AutoNavigation {
         }
 
         boolean isValidVehicle = (
-                player.getVehicle() instanceof HappyGhast || player.getVehicle() instanceof AbstractHorse || player.getVehicle() instanceof AbstractBoat
+                player.getVehicle() instanceof HappyGhast || player.getVehicle() instanceof AbstractHorse
+                        || player.getVehicle() instanceof AbstractBoat || player.getVehicle() instanceof AbstractNautilus
         );
         if (!isValidVehicle) {
             reset();
@@ -132,6 +142,39 @@ public class AutoNavigation {
                  player.getVehicle().lookAt(EntityAnchorArgument.Anchor.EYES, turnCurrent);
             }
             mc.options.keyUp.setDown(true);
+        }
+    }
+
+    // Automatically charges and releases the jump key to trigger a nautilus's dash
+    // as soon as it comes off cooldown, keeping travel speed near-maximal.
+    @Subscribe
+    public void tickDash(ClientTickEvent event) {
+        if (destinations.isEmpty()) {
+            return;
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        if (player == null) {
+            return;
+        }
+
+        if (!(player.getVehicle() instanceof AbstractNautilus nautilus) || !nautilus.canJump()) {
+            if (dashChargeTicks >= 0) {
+                mc.options.keyJump.setDown(false);
+                dashChargeTicks = -1;
+            }
+            return;
+        }
+
+        if (dashChargeTicks < 0) {
+            if (nautilus.getJumpCooldown() == 0) {
+                mc.options.keyJump.setDown(true);
+                dashChargeTicks = 0;
+            }
+        } else if (++dashChargeTicks >= DASH_CHARGE_TICKS) {
+            mc.options.keyJump.setDown(false);
+            dashChargeTicks = -1;
         }
     }
 }

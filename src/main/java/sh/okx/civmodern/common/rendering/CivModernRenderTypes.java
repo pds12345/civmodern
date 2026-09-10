@@ -25,4 +25,11 @@ public class CivModernRenderTypes {
                 .createRenderSetup()
         )
     );
+
+    // Untextured, so unlike TEXT/TEXT2 this needs no per-resource memoization - one RenderType
+    // covers every waypoint column.
+    public static final RenderType COLUMN = RenderType.create(
+        "column",
+        RenderSetup.builder(CivModernPipelines.COLUMN).createRenderSetup()
+    );
 }

@@ -29,9 +29,13 @@ import java.util.List;
 public class WaypointManagerScreen extends Screen {
 
     private static final int ROW_HEIGHT = 20;
-    private static final int TOGGLE_COLUMN = 18;
     private static final int TOGGLE_SIZE = 16;
+    // Room for both the waypoint-visibility eye and the column-visibility toggle beside it.
+    private static final int TOGGLE_COLUMN = 40;
     private static final Identifier TOGGLE_TEXTURE = Identifier.fromNamespaceAndPath("civmodern", "gui/visibility.png");
+    // The column toggle reuses the eye texture (tinted) until a dedicated icon exists.
+    private static final int COLUMN_TOGGLE_ON_TINT = 0xFF66CCFF;
+    private static final int COLUMN_TOGGLE_OFF_TINT = 0x66888888;
     private static final int ICON_COLUMN = 26;
     private static final int X_COLUMN = 52;
     private static final int Y_COLUMN = 44;
@@ -225,6 +229,14 @@ public class WaypointManagerScreen extends Screen {
             guiGraphics.blit(RenderPipelines.GUI_TEXTURED, TOGGLE_TEXTURE, toggleLeft, toggleTop, 0, toggleV,
                 TOGGLE_SIZE, TOGGLE_SIZE, 20, 20, 20, 40, -1);
 
+            // The column highlight toggle, tinted to read as a separate control from the eye above.
+            boolean columnVisible = waypoint.columnVisible();
+            int columnToggleLeft = toggleLeft + TOGGLE_SIZE + 3;
+            int columnToggleV = columnVisible ? 0 : 20;
+            int columnToggleTint = columnVisible ? COLUMN_TOGGLE_ON_TINT : COLUMN_TOGGLE_OFF_TINT;
+            guiGraphics.blit(RenderPipelines.GUI_TEXTURED, TOGGLE_TEXTURE, columnToggleLeft, toggleTop, 0, columnToggleV,
+                TOGGLE_SIZE, TOGGLE_SIZE, 20, 20, 20, 40, columnToggleTint);
+
             // The very diamond the map draws: same texture, tinted with the waypoint's colour.
             int iconTint = (visible ? 0xFF000000 : 0x66000000) | waypoint.colour();
             guiGraphics.blit(RenderPipelines.GUI_TEXTURED, waypoint.resourceLocation(),
@@ -270,6 +282,12 @@ public class WaypointManagerScreen extends Screen {
         return mouseX >= toggleLeft && mouseX < toggleLeft + TOGGLE_SIZE;
     }
 
+    /** @return whether the given x is over the column-visibility toggle box. */
+    private boolean isOnColumnToggle(double mouseX) {
+        int columnToggleLeft = tableLeft() + 3 + TOGGLE_SIZE + 3;
+        return mouseX >= columnToggleLeft && mouseX < columnToggleLeft + TOGGLE_SIZE;
+    }
+
     // ------------------------------------------------------------- input
 
     @Override
@@ -289,6 +307,10 @@ public class WaypointManagerScreen extends Screen {
         Waypoint waypoint = list.get(row);
         if (isOnToggle(event.x())) {
             waypoints.setVisible(waypoint, !waypoint.visible());
+            return true;
+        }
+        if (isOnColumnToggle(event.x())) {
+            waypoints.setColumnVisible(waypoint, !waypoint.columnVisible());
             return true;
         }
         editModal.setWaypoint(waypoint);

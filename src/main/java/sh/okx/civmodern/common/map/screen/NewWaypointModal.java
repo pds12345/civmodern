@@ -117,7 +117,6 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             }
             updateHighlightButton();
         });
-        updateHighlightButton();
         visibilityButton = new VisibilityToggleButton(0, 0, 20, 20, () -> this.createVisible, btn -> this.createVisible = !this.createVisible);
         ImageButton moveButton = new ImageButton(0, 0, 20, 20, Identifier.fromNamespaceAndPath("civmodern", "gui/move.png"), imbg -> {
             this.visible = false;
@@ -147,6 +146,9 @@ public class NewWaypointModal extends Modal<FlowLayout> {
         zBox = UIComponents.textBox(Sizing.fixed(50), Integer.toString(z));
         zBox.setFilter(numFilter);
         zBox.onChanged().subscribe(value -> this.updateDone());
+        // Only now that the coordinate boxes exist: isHighlighted() reads them, and doing this
+        // before they were created crashed the map on open whenever a highlight was set.
+        updateHighlightButton();
 
         colourBox = new ColourTextEditBox(Sizing.fixed(55), () -> colour, c -> {
             this.colour = c;
@@ -242,7 +244,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
     /** Whether the position currently in the fields is the map's current highlight. */
     private boolean isHighlighted() {
         Waypoint target = this.waypoints.getTarget();
-        if (target == null) {
+        if (target == null || xBox == null || yBox == null || zBox == null) {
             return false;
         }
         try {
@@ -338,7 +340,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
             int x = Integer.parseInt(this.xBox.getValue());
             int y = Integer.parseInt(this.yBox.getValue());
             int z = Integer.parseInt(this.zBox.getValue());
-            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, "waypoint", this.colour, this.createVisible));
+            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, "waypoint", this.colour, this.createVisible, true));
             setVisible(false);
             if (this.onDone != null) {
                 this.onDone.run();

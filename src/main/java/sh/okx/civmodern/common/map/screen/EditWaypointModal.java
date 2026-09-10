@@ -224,7 +224,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
     private void toggleVisibility() {
         boolean newVisible = !this.waypoint.visible();
         this.waypoints.setVisible(this.waypoint, newVisible);
-        this.waypoint = new Waypoint(this.waypoint.name(), this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), this.waypoint.icon(), this.waypoint.colour(), newVisible);
+        this.waypoint = new Waypoint(this.waypoint.name(), this.waypoint.x(), this.waypoint.y(), this.waypoint.z(), this.waypoint.icon(), this.waypoint.colour(), newVisible, this.waypoint.columnVisible());
     }
 
     public String getName() {
@@ -315,7 +315,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
             int y = Integer.parseInt(this.yBox.getValue());
             int z = Integer.parseInt(this.zBox.getValue());
             waypoints.removeWaypoint(this.waypoint);
-            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, this.waypoint.icon(), this.colour, this.waypoint.visible()));
+            waypoints.addWaypoint(new Waypoint(this.nameBox.getValue(), x, y, z, this.waypoint.icon(), this.colour, this.waypoint.visible(), this.waypoint.columnVisible()));
             setVisible(false);
         } catch (NumberFormatException ignored) {
 

@@ -80,6 +80,8 @@
     "civmodern.screen.map.waypointmanager": "Waypoints Manager",
     "civmodern.screen.map.waypointdistance": "Waypoint distance: %s",
     "civmodern.screen.map.maxzoom": "Max zoom: %s",
+    "civmodern.screen.map.columnopacity": "Column opacity: %s",
+    "civmodern.screen.map.columnsenabled": "Waypoint Columns",
     "civmodern.screen.map.waypointmanager.noworld": "Join a world first",
     "civmodern.screen.waypoints.empty": "No waypoints yet",
     "civmodern.map.highlight.tooltip": "Set highlighted waypoint",

@@ -34,6 +34,20 @@ public class CivModernPipelines {
         .withLocation(Identifier.fromNamespaceAndPath("civmodern", "pipeline/text"))
         .build();
 
+    // Untextured translucent quads for the waypoint column: depth-tested against terrain (so it
+    // is normally occluded like real world geometry, unlike the always-visible waypoint icon)
+    // but writes no depth, so the three nested translucent shells do not occlude each other or
+    // fight for pixels. Culling is off so the inside faces stay visible when the camera is inside
+    // a shell (it commonly is, given how close to the waypoint the shells are).
+    public static final RenderPipeline COLUMN = RenderPipeline.builder(RenderPipelines.GUI_SNIPPET)
+        .withLocation(Identifier.fromNamespaceAndPath("civmodern", "pipeline/column"))
+        .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
+        .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+        .withBlend(new BlendFunction(SourceFactor.SRC_ALPHA, DestFactor.ONE_MINUS_SRC_ALPHA, SourceFactor.ONE, DestFactor.ONE_MINUS_SRC_ALPHA))
+        .withDepthWrite(false)
+        .withCull(false)
+        .build();
+
     public static final RenderPipeline.Snippet MATRICES_PROJECTION_SNIPPET = RenderPipeline.builder().withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER).withUniform("Projection", UniformType.UNIFORM_BUFFER).buildSnippet();
     public static final RenderPipeline.Snippet COLOR_WRITE = RenderPipeline.builder().withColorWrite(true).withDepthWrite(false).buildSnippet();
     public static final RenderPipeline.Snippet POSITION_TEX_COLOR_SHADER = RenderPipeline.builder(MATRICES_PROJECTION_SNIPPET).withLocation("cm/pipeline/position_tex_color").withVertexShader("core/position_tex_color").withFragmentShader("core/position_tex_color").withSampler("Sampler0").buildSnippet();
@@ -43,6 +57,7 @@ public class CivModernPipelines {
         RenderPipelines.register(GUI_QUADS);
         RenderPipelines.register(TEXT);
         RenderPipelines.register(TEXT2);
+        RenderPipelines.register(COLUMN);
         RenderPipelines.register(REGION_DEFAULT_RENDER_PIPELINE);
     }
 }

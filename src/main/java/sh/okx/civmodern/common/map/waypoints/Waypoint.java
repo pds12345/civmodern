@@ -10,12 +10,12 @@ import org.joml.Matrix4f;
 
 import java.util.function.Function;
 
-public record Waypoint(String name, int x, int y, int z, String icon, int colour, boolean visible) {
+public record Waypoint(String name, int x, int y, int z, String icon, int colour, boolean visible, boolean columnVisible) {
 
     // Ephemeral/preview waypoints (targeting crosshairs, new-waypoint previews, etc.) construct
-    // through this and are always visible; only persisted waypoints carry a real visible flag.
+    // through this and are always visible; only persisted waypoints carry real visible/column flags.
     public Waypoint(String name, int x, int y, int z, String icon, int colour) {
-        this(name, x, y, z, icon, colour, true);
+        this(name, x, y, z, icon, colour, true, true);
     }
 
     public void render(Function<Identifier, RenderType> type, MultiBufferSource source, Matrix4f pose, int f, int k) {

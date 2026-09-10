@@ -9,6 +9,7 @@ import net.minecraft.world.entity.animal.happyghast.HappyGhast;
 import net.minecraft.world.entity.animal.equine.AbstractHorse;
 import net.minecraft.world.entity.animal.nautilus.AbstractNautilus;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
+import net.minecraft.world.entity.vehicle.boat.Boat;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import sh.okx.civmodern.common.AbstractCivModernMod;

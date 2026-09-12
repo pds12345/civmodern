@@ -8,7 +8,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.animal.happyghast.HappyGhast;
 import net.minecraft.world.entity.animal.equine.AbstractHorse;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
-import net.minecraft.world.entity.vehicle.boat.Boat;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import sh.okx.civmodern.common.AbstractCivModernMod;
@@ -60,7 +59,7 @@ public class AutoNavigation {
         }
 
         boolean isValidVehicle = (
-                player.getVehicle() instanceof HappyGhast || player.getVehicle() instanceof AbstractHorse || player.getVehicle() instanceof Boat
+                player.getVehicle() instanceof HappyGhast || player.getVehicle() instanceof AbstractHorse || player.getVehicle() instanceof AbstractBoat
         );
         if (!isValidVehicle) {
             reset();

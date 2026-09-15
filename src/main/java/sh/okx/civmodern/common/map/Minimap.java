@@ -3,7 +3,6 @@ package sh.okx.civmodern.common.map;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.util.Mth;
@@ -123,7 +122,8 @@ public class Minimap {
 
         matrices.translate(translateX, translateY);
 
-        LocalPlayer player = Minecraft.getInstance().player;
+        // The camera entity, not mc.player: while spectating, only the camera moves client-side.
+        Entity player = MapFocus.entity();
         float px = (float) Mth.lerp(event.deltaTick(), player.xo, player.getX());
         float pz = (float) Mth.lerp(event.deltaTick(), player.zo, player.getZ());
         int playerBX = player.getBlockX();

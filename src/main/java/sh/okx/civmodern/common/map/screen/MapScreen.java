@@ -21,6 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec2;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
@@ -30,6 +31,7 @@ import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.navigation.AutoNavigation;
 import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.map.MapCache;
+import sh.okx.civmodern.common.map.MapFocus;
 import sh.okx.civmodern.common.map.RegionAtlasTexture;
 import sh.okx.civmodern.common.map.RegionKey;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
@@ -116,8 +118,9 @@ public class MapScreen extends Screen {
         this.playerWaypoints = playerWaypoints;
         Window window = Minecraft.getInstance().getWindow();
 
-        x = Minecraft.getInstance().player.getX() - (window.getWidth() * zoom) / 2;
-        y = Minecraft.getInstance().player.getZ() - (window.getHeight() * zoom) / 2;
+        Entity focus = MapFocus.entity();
+        x = focus.getX() - (window.getWidth() * zoom) / 2;
+        y = focus.getZ() - (window.getHeight() * zoom) / 2;
         this.navigation = navigation;
     }
 
@@ -518,14 +521,15 @@ public class MapScreen extends Screen {
             matrices.popMatrix();
         }
 
-        LocalPlayer player = Minecraft.getInstance().player;
-        float prx = (float) (player.getX() - this.x) / scale;
-        float pry = (float) (player.getZ() - this.y) / scale;
+        // Chevron marks the camera entity (the spectate target while spectating), not mc.player.
+        Entity focus = MapFocus.entity();
+        float prx = (float) (focus.getX() - this.x) / scale;
+        float pry = (float) (focus.getZ() - this.y) / scale;
         matrices.pushMatrix();
         int chevron = 0xFF000000 | mod.getColourProvider().getChevronColour();
         matrices.translate(prx, pry);
         matrices.scale(4, 4);
-        matrices.rotate((float) Math.toRadians(player.getViewYRot(delta) % 360f));
+        matrices.rotate((float) Math.toRadians(focus.getViewYRot(delta) % 360f));
         guiGraphics.guiRenderState.submitGuiElement(new ChevronRenderState(
             CivModernPipelines.GUI_TRIANGLE_STRIP_BLEND,
             new Matrix3x2f(guiGraphics.pose()),
@@ -536,6 +540,7 @@ public class MapScreen extends Screen {
 
         Queue<Vec2> dests = navigation.getDestinations();
         if (boating || !dests.isEmpty()) {
+            LocalPlayer player = Minecraft.getInstance().player;
             guiGraphics.guiRenderState.nextStratum();
             List<Vec2> points = new ArrayList<>();
             float px;

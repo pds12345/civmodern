@@ -1,6 +1,7 @@
 package sh.okx.civmodern.common.map;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -47,8 +48,9 @@ public class MapCache {
     private final Map<RegionKey, RegionLoader> nearbyRegions = new ConcurrentHashMap<>();
 
     private final Queue<RegionKey> queue = new PriorityBlockingQueue<>(11, (r1, r2) -> {
-        int px = Minecraft.getInstance().player.getBlockX();
-        int pz = Minecraft.getInstance().player.getBlockZ();
+        Entity focus = MapFocus.entity();
+        int px = focus.getBlockX();
+        int pz = focus.getBlockZ();
         return Double.compare(
             Mth.lengthSquared(r1.x() * 512 + 256 - px, r1.z() * 512 + 256 - pz),
             Mth.lengthSquared(r2.x() * 512 + 256 - px, r2.z() * 512 + 256 - pz));
@@ -229,8 +231,9 @@ public class MapCache {
         while (iterator.hasNext()) {
             Map.Entry<RegionKey, RegionReference> entry = iterator.next();
 
-            int px = Minecraft.getInstance().player.getBlockX();
-            int pz = Minecraft.getInstance().player.getBlockZ();
+            Entity focus = MapFocus.entity();
+            int px = focus.getBlockX();
+            int pz = focus.getBlockZ();
             double dist = Mth.lengthSquared(entry.getKey().x() * 512 + 256 - px, entry.getKey().z() * 512 + 256 - pz);
 
             boolean far = dist > 96 * 16 * 96 * 16;

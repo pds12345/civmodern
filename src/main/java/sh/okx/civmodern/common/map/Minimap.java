@@ -67,6 +67,8 @@ public class Minimap {
      * the square, otherwise the mask leaves a sliver of map showing at the corners.
      */
     private static final int CIRCLE_SEGMENTS = 128;
+    /** Off-map waypoints are pinned to the outline at this fraction of their normal size. */
+    private static final float EDGE_MARKER_SCALE = 0.5f;
 
     static {
         RenderSystem.queueFencedTask(blank::init);
@@ -347,12 +349,21 @@ public class Minimap {
                     Vector2d at = onMap((wx - x) / zoom, (wz - y) / zoom, drawOffset, size, cos, sin);
                     double tx = at.x;
                     double ty = at.y;
+                    float scale = iconScale;
                     if (outside(tx, ty, size, circular)) {
-                        continue;
+                        if (!config.isMinimapEdgeWaypoints()) {
+                            continue;
+                        }
+                        // Off the map: a half-size marker centred on the outline, where the tiles
+                        // meet the border, on the line from the centre towards the waypoint.
+                        scale *= EDGE_MARKER_SCALE;
+                        Vector2d edge = onEdge(tx, ty, size, circular);
+                        tx = edge.x;
+                        ty = edge.y;
                     }
                     matrices.pushMatrix();
                     matrices.translate((float) tx, (float) ty);
-                    matrices.scale(iconScale, iconScale);
+                    matrices.scale(scale, scale);
 
                     waypoint.render2D(graphics);
                     matrices.popMatrix();
@@ -396,6 +407,20 @@ public class Minimap {
         double dx = tx - drawOffset - r;
         double dy = ty - drawOffset - r;
         return new Vector2d(r + dx * cos - dy * sin, r + dx * sin + dy * cos);
+    }
+
+    /**
+     * Where the line from the map's centre towards ({@code tx}, {@code ty}) meets the outline. On a
+     * square that is the ray's exit through whichever side it hits; on a circle, the circumference.
+     */
+    private static Vector2d onEdge(double tx, double ty, float size, boolean circular) {
+        double r = size / 2.0;
+        double dx = tx - r;
+        double dy = ty - r;
+        double t = circular
+            ? r / Math.sqrt(dx * dx + dy * dy)
+            : r / Math.max(Math.abs(dx), Math.abs(dy));
+        return new Vector2d(r + dx * t, r + dy * t);
     }
 
     /** Whether an icon centred at ({@code tx}, {@code ty}) in map pixels falls off the minimap. */

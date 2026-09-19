@@ -1,13 +1,16 @@
 package sh.okx.civmodern.common.gui.widget;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import org.lwjgl.glfw.GLFW;
 
 public class ImageButton extends AbstractWidget {
 
@@ -41,6 +44,21 @@ public class ImageButton extends AbstractWidget {
     @Override
     public void onClick(MouseButtonEvent event, boolean bl) {
         this.onPress.onPress(this);
+    }
+
+    /** Space or Enter presses a focused button, as vanilla's buttons do; this widget is not one. */
+    @Override
+    public boolean keyPressed(KeyEvent event) {
+        if (this.active && this.visible && isActivation(event)) {
+            this.playDownSound(Minecraft.getInstance().getSoundManager());
+            this.onPress.onPress(this);
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    static boolean isActivation(KeyEvent event) {
+        return event.key() == GLFW.GLFW_KEY_SPACE || event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER;
     }
 
     @Override

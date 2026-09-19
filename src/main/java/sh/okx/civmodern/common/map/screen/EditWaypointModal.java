@@ -179,6 +179,7 @@ public class EditWaypointModal extends Modal<FlowLayout> {
 
         this.layout.inflateAndMount();
         colourBox.moveCursorToStart(false);
+        submitOnEnter(this::done, nameBox, xBox, yBox, zBox);
     }
 
     /** The X/Y/Z labels and boxes, inline on one row, the same right-margin as everywhere else in the modal. */

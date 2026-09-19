@@ -17,6 +17,7 @@ import sh.okx.civmodern.common.events.BlockStateChangeEvent;
 import sh.okx.civmodern.common.events.ChatReceivedEvent;
 import sh.okx.civmodern.common.events.ChunkLoadEvent;
 import sh.okx.civmodern.common.events.ClientTickEvent;
+import sh.okx.civmodern.common.events.DeathEvent;
 import sh.okx.civmodern.common.events.JoinEvent;
 import sh.okx.civmodern.common.events.LeaveEvent;
 import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
@@ -283,6 +284,13 @@ public class WorldListener {
     public void onTick(ClientTickEvent event) {
         if (this.playerWaypoints != null) {
             this.playerWaypoints.tick();
+        }
+    }
+
+    @Subscribe
+    public void onDeath(DeathEvent event) {
+        if (this.waypoints != null) {
+            this.waypoints.recordDeath(event.pos().getX(), event.pos().getY(), event.pos().getZ());
         }
     }
 

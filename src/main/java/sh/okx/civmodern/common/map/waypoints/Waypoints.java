@@ -14,6 +14,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.events.WorldRenderLastEvent;
@@ -24,6 +25,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,20 +37,25 @@ import java.util.Optional;
 
 public class Waypoints {
 
+    /** The name and colour that mark the latest death; older deaths are renamed with their time. */
+    public static final String MOST_RECENT_DEATH_NAME = "Most Recent Death";
+    public static final int DEATH_COLOUR = 0xFFFFFF;
+    private static final String DEATH_NAME_PREFIX = "Death on ";
+    private static final String UNKNOWN_DEATH_TIME = "<date/time unknown>";
+
     private final Int2ObjectMap<Int2ObjectMap<Int2ObjectMap<Waypoint>>> waypoints = new Int2ObjectOpenHashMap<>();
     private Waypoint target;
     private final Connection connection;
 
     public Waypoints(Connection connection) {
         this.connection = connection;
-        // TODO waypoint on death
         load();
     }
 
     private void load() {
         synchronized (this.connection) {
             try (Statement statement = connection.createStatement()) {
-                ResultSet resultSet = statement.executeQuery("SELECT name, x, y, z, icon, colour, visible, column_visible FROM waypoints");
+                ResultSet resultSet = statement.executeQuery("SELECT name, x, y, z, icon, colour, visible, column_visible, created_at, updated_at FROM waypoints");
 
                 while (resultSet.next()) {
                     this.putInMemory(new Waypoint(
@@ -55,13 +66,38 @@ public class Waypoints {
                         resultSet.getString("icon"),
                         resultSet.getInt("colour"),
                         resultSet.getBoolean("visible"),
-                        resultSet.getBoolean("column_visible")
+                        resultSet.getBoolean("column_visible"),
+                        readInstant(resultSet, "created_at"),
+                        readInstant(resultSet, "updated_at")
                     ));
                 }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /** A nullable epoch-milliseconds column. */
+    private static @Nullable Instant readInstant(ResultSet resultSet, String column) throws SQLException {
+        long millis = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : Instant.ofEpochMilli(millis);
+    }
+
+    private static void bindInstant(PreparedStatement statement, int index, @Nullable Instant instant) throws SQLException {
+        if (instant == null) {
+            statement.setNull(index, Types.INTEGER);
+        } else {
+            statement.setLong(index, instant.toEpochMilli());
+        }
+    }
+
+    private @Nullable Waypoint get(int x, int y, int z) {
+        Int2ObjectMap<Int2ObjectMap<Waypoint>> wx = this.waypoints.get(x);
+        if (wx == null) {
+            return null;
+        }
+        Int2ObjectMap<Waypoint> wz = wx.get(z);
+        return wz == null ? null : wz.get(y);
     }
 
     private void putInMemory(Waypoint waypoint) {
@@ -80,14 +116,53 @@ public class Waypoints {
         }
     }
 
-    /** Adds/updates the waypoint in memory and writes it through to the database immediately. */
-    public void addWaypoint(Waypoint waypoint) {
+    /**
+     * Adds the waypoint, or overwrites whatever is at its position, and writes it through to the
+     * database immediately. A new position gets {@code createdAt} now (unless the waypoint already
+     * carries one); an overwritten position keeps the timestamp it had, null included.
+     *
+     * @return the waypoint as stored, with its timestamps filled in
+     */
+    public Waypoint addWaypoint(Waypoint waypoint) {
+        Instant now = Instant.now();
+        Waypoint existing = get(waypoint.x(), waypoint.y(), waypoint.z());
+        Instant createdAt;
+        if (existing != null) {
+            createdAt = existing.createdAt();
+        } else {
+            createdAt = waypoint.createdAt() != null ? waypoint.createdAt() : now;
+        }
+        return write(waypoint.withTimestamps(createdAt, now));
+    }
+
+    /**
+     * Replaces {@code old} with {@code replacement}, which may sit at a different position, keeping
+     * the original creation time (null stays null: a pre-timestamp waypoint is not backdated by
+     * being edited) and stamping the update time.
+     *
+     * @return the waypoint as stored
+     */
+    public Waypoint updateWaypoint(Waypoint old, Waypoint replacement) {
+        Waypoint existing;
+        if (old.samePosition(replacement)) {
+            existing = old;
+        } else {
+            removeWaypoint(old);
+            // Moving onto another waypoint overwrites it, so that one's creation time is kept.
+            Waypoint occupant = get(replacement.x(), replacement.y(), replacement.z());
+            existing = occupant != null ? occupant : old;
+        }
+        return write(replacement.withTimestamps(existing.createdAt(), Instant.now()));
+    }
+
+    /** Upserts by position. {@code created_at} is only ever set on insert, matching the in-memory resolution above. */
+    private Waypoint write(Waypoint waypoint) {
         putInMemory(waypoint);
 
         synchronized (this.connection) {
             try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO waypoints (name, x, y, z, icon, colour, visible, column_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
-                    + "ON CONFLICT DO UPDATE SET name = ?, icon = ?, colour = ?, visible = ?, column_visible = ?")) {
+                "INSERT INTO waypoints (name, x, y, z, icon, colour, visible, column_visible, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    + "ON CONFLICT DO UPDATE SET name = ?, icon = ?, colour = ?, visible = ?, column_visible = ?, updated_at = ?")) {
                 statement.setString(1, waypoint.name());
                 statement.setInt(2, waypoint.x());
                 statement.setInt(3, waypoint.y());
@@ -96,24 +171,53 @@ public class Waypoints {
                 statement.setInt(6, waypoint.colour());
                 statement.setBoolean(7, waypoint.visible());
                 statement.setBoolean(8, waypoint.columnVisible());
-                statement.setString(9, waypoint.name());
-                statement.setString(10, waypoint.icon());
-                statement.setInt(11, waypoint.colour());
-                statement.setBoolean(12, waypoint.visible());
-                statement.setBoolean(13, waypoint.columnVisible());
+                bindInstant(statement, 9, waypoint.createdAt());
+                bindInstant(statement, 10, waypoint.updatedAt());
+                statement.setString(11, waypoint.name());
+                statement.setString(12, waypoint.icon());
+                statement.setInt(13, waypoint.colour());
+                statement.setBoolean(14, waypoint.visible());
+                statement.setBoolean(15, waypoint.columnVisible());
+                bindInstant(statement, 16, waypoint.updatedAt());
                 statement.executeUpdate();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
         }
+        return waypoint;
     }
 
-    public void setVisible(Waypoint waypoint, boolean visible) {
-        addWaypoint(new Waypoint(waypoint.name(), waypoint.x(), waypoint.y(), waypoint.z(), waypoint.icon(), waypoint.colour(), visible, waypoint.columnVisible()));
+    public Waypoint setVisible(Waypoint waypoint, boolean visible) {
+        return updateWaypoint(waypoint, waypoint.withVisible(visible));
     }
 
-    public void setColumnVisible(Waypoint waypoint, boolean columnVisible) {
-        addWaypoint(new Waypoint(waypoint.name(), waypoint.x(), waypoint.y(), waypoint.z(), waypoint.icon(), waypoint.colour(), waypoint.visible(), columnVisible));
+    public Waypoint setColumnVisible(Waypoint waypoint, boolean columnVisible) {
+        return updateWaypoint(waypoint, waypoint.withColumnVisible(columnVisible));
+    }
+
+    /**
+     * Drops a white "Most Recent Death" waypoint at the given position. Any earlier waypoint still
+     * carrying that name and colour is first renamed to "Death on" plus its creation time, so the
+     * name only ever points at the latest death and the history stays in the list.
+     */
+    public void recordDeath(int x, int y, int z) {
+        for (Waypoint waypoint : getWaypoints()) {
+            if (waypoint == target) {
+                continue;
+            }
+            if (MOST_RECENT_DEATH_NAME.equals(waypoint.name()) && waypoint.colour() == DEATH_COLOUR) {
+                updateWaypoint(waypoint, waypoint.withName(DEATH_NAME_PREFIX + describeDeathTime(waypoint.createdAt())));
+            }
+        }
+        addWaypoint(new Waypoint(MOST_RECENT_DEATH_NAME, x, y, z, "waypoint", DEATH_COLOUR, true, true));
+    }
+
+    /** ISO-8601 local date and time to the second, e.g. {@code 2026-09-18T21:44:12}. */
+    private static String describeDeathTime(@Nullable Instant createdAt) {
+        if (createdAt == null) {
+            return UNKNOWN_DEATH_TIME;
+        }
+        return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(createdAt.atZone(ZoneId.systemDefault()).truncatedTo(ChronoUnit.SECONDS));
     }
 
     /** Removes the waypoint from memory and deletes it from the database immediately. */

@@ -15,7 +15,9 @@ import net.minecraft.util.Mth;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
+import sh.okx.civmodern.common.map.WorldListener;
 import sh.okx.civmodern.common.map.screen.WaypointManagerScreen;
+import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 import sh.okx.civmodern.common.gui.DoubleValue;
 import sh.okx.civmodern.common.gui.widget.DoubleOptionUpdateableSliderWidget;
@@ -224,19 +226,22 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.columnsenabled"), config::isColumnsEnabled, config::setColumnsEnabled, null, ToggleButton.DEFAULT_NARRATION));
         offset += 24;
-        int waypointScalingLabelY = offset;
-        offset += 12;
-        addNumberInput("Waypoint base zoom", left, waypointScalingLabelY, offset, 0.001f, 4f,
-            config::getWaypointBaseZoom, config::setWaypointBaseZoom);
-        addNumberInput("Waypoint zoom log base", right, waypointScalingLabelY, offset, 1.01f, 20f,
-            config::getWaypointZoomLogBase, config::setWaypointZoomLogBase);
-        offset += 24;
-        int minimapScalingLabelY = offset;
-        offset += 12;
-        addNumberInput("Minimap icon base zoom", left, minimapScalingLabelY, offset, 0.001f, 16f,
-            config::getMinimapIconBaseZoom, config::setMinimapIconBaseZoom);
-        addNumberInput("Minimap icon zoom log base", right, minimapScalingLabelY, offset, 1.01f, 20f,
-            config::getMinimapIconZoomLogBase, config::setMinimapIconZoomLogBase);
+        // The four waypoint-size numbers are edited on their own screen, where the effect is visible.
+        AbstractCivModernMod mod = AbstractCivModernMod.getInstance();
+        WorldListener worldListener = mod.getWorldListener();
+        boolean inWorld = worldListener.getCache() != null && worldListener.getMinimap() != null;
+        Button previewButton = Button.builder(Component.translatable("civmodern.screen.map.waypointpreview"), button -> {
+            if (inWorld) {
+                Minecraft.getInstance().setScreen(new WaypointSizePreviewScreen(this, config,
+                    worldListener.getCache(), worldListener.getMinimap(), mod.getMinimapZoomBinding()));
+            }
+        }).pos(centre, offset).size(150, 20).build();
+        // Needs the map and minimap, which only exist inside a world.
+        previewButton.active = inWorld;
+        if (!inWorld) {
+            previewButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
+        }
+        addBodyWidget(previewButton);
         offset += 24;
 
         chevronPicker = addColourPicker("Chevron colour", left, offset, CivMapConfig.DEFAULT_CHEVRON_COLOUR, config::getChevronColour, config::setChevronColour,
@@ -283,30 +288,6 @@ public class MapConfigScreen extends AbstractConfigScreen {
         for (BodyEntry entry : this.bodyEntries) {
             entry.reposition().accept(entry.naturalY() - (int) this.scrollAmount);
         }
-    }
-
-    private void addNumberInput(String title, int x, int labelY, int y, float min, float max, Supplier<Float> valueGet, Consumer<Float> valueSet) {
-        addBodyRenderableOnly(new TextRenderable.CentreAligned(
-            this.font,
-            x + 75,
-            labelY,
-            Component.literal(title)
-        ));
-        EditBox widget = new EditBox(font, x, y, 150, 20, Component.empty());
-        widget.setValue(String.valueOf(valueGet.get()));
-        widget.setMaxLength(16);
-        Pattern pattern = Pattern.compile("^[0-9]*\\.?[0-9]*$");
-        widget.setFilter(string -> pattern.matcher(string).matches());
-        widget.setResponder(val -> {
-            try {
-                float parsed = Float.parseFloat(val);
-                if (parsed >= min && parsed <= max) {
-                    valueSet.accept(parsed);
-                }
-            } catch (NumberFormatException ignored) {
-            }
-        });
-        addBodyWidget(widget);
     }
 
     private HsbColourPicker addColourPicker(String title, int x, int offsetY, int defaultColour, Supplier<Integer> colourGet, Consumer<Integer> colourSet, Consumer<Integer> preview) {

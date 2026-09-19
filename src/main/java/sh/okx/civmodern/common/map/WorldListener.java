@@ -303,6 +303,11 @@ public class WorldListener {
         return this.waypoints;
     }
 
+    /** {@code null} outside a world. */
+    public Minimap getMinimap() {
+        return this.minimap;
+    }
+
     public void setSeed(long seed) {
         this.seed = seed;
     }

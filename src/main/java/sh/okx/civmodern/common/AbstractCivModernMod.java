@@ -383,6 +383,11 @@ public abstract class AbstractCivModernMod {
         return worlds;
     }
 
+    /** Exposed so screens can react to the minimap zoom key themselves: bindings don't fire while a screen is open. */
+    public KeyMapping getMinimapZoomBinding() {
+        return minimapZoomBinding;
+    }
+
     public NodeApiClient getNodeApi() {
         return nodeApi;
     }

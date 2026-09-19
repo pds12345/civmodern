@@ -2,6 +2,8 @@ package sh.okx.civmodern.common.map;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
@@ -79,16 +81,20 @@ public class RegionAtlasTexture {
         glGenerateMipmap(GL_TEXTURE_2D);
     }
 
+    /** A turn of {@code radians} about ({@code pivotX}, {@code pivotY}), in GUI pixels from the translate origin. */
+    public record Rotation(float radians, float pivotX, float pivotY) {
+    }
+
     public BlitRenderState.Renderer draw(GuiGraphics graphics, float x, float y, float scale) {
-        return draw(graphics, x, y, false, scale, 0, 0, SIZE, SIZE, SIZE, SIZE, 0, 0);
+        return draw(graphics, x, y, false, scale, 0, 0, SIZE, SIZE, SIZE, SIZE, 0, 0, null);
     }
 
-    public BlitRenderState.Renderer drawLinear(GuiGraphics graphics, float x, float y, float scale, float xOff, float yOff, float xSize, float ySize, float width, float height, int translateX, int translateY) {
-        return draw(graphics, x, y, true, scale, xOff, yOff, xSize, ySize, width, height, translateX, translateY);
+    public BlitRenderState.Renderer drawLinear(GuiGraphics graphics, float x, float y, float scale, float xOff, float yOff, float xSize, float ySize, float width, float height, int translateX, int translateY, @Nullable Rotation rotation) {
+        return draw(graphics, x, y, true, scale, xOff, yOff, xSize, ySize, width, height, translateX, translateY, rotation);
     }
 
-    private BlitRenderState.Renderer draw(GuiGraphics graphics, float x, float y, boolean linear, float scale, float xOff, float yOff, float xSize, float ySize, float width, float height, int translateX, int translateY) {
-        return blit(graphics, (x / scale), (y / scale), linear, xOff / scale, yOff / scale, (width / scale), (height / scale), xSize / scale, ySize / scale, translateX, translateY);
+    private BlitRenderState.Renderer draw(GuiGraphics graphics, float x, float y, boolean linear, float scale, float xOff, float yOff, float xSize, float ySize, float width, float height, int translateX, int translateY, @Nullable Rotation rotation) {
+        return blit(graphics, (x / scale), (y / scale), linear, xOff / scale, yOff / scale, (width / scale), (height / scale), xSize / scale, ySize / scale, translateX, translateY, rotation);
     }
 
     public void delete() {
@@ -97,18 +103,18 @@ public class RegionAtlasTexture {
         });
     }
 
-    private BlitRenderState.Renderer blit(GuiGraphics graphics, float renderX, float renderY, boolean linear, float textureXoffset, float texureYoffset, float renderWidth, float renderHeight, float textureWidth, float textureHeight, int translateX, int translateY) {
-        return innerBlit(graphics, renderX, renderX + renderWidth, renderY, renderY + renderHeight, linear, renderWidth, renderHeight, textureXoffset, texureYoffset, textureWidth, textureHeight, translateX, translateY);
+    private BlitRenderState.Renderer blit(GuiGraphics graphics, float renderX, float renderY, boolean linear, float textureXoffset, float texureYoffset, float renderWidth, float renderHeight, float textureWidth, float textureHeight, int translateX, int translateY, @Nullable Rotation rotation) {
+        return innerBlit(graphics, renderX, renderX + renderWidth, renderY, renderY + renderHeight, linear, renderWidth, renderHeight, textureXoffset, texureYoffset, textureWidth, textureHeight, translateX, translateY, rotation);
     }
 
-    private BlitRenderState.Renderer innerBlit(GuiGraphics graphics, float i, float j, float k, float l, boolean linear, float n, float o, float f, float g, float p, float q, int translateX, int translateY) {
-        return innerBlit(graphics, i, j, k, l, linear, (f + 0.0f) / p, (f + n) / p, (g + 0.0f) / q, (g + o) / q, translateX, translateY);
+    private BlitRenderState.Renderer innerBlit(GuiGraphics graphics, float i, float j, float k, float l, boolean linear, float n, float o, float f, float g, float p, float q, int translateX, int translateY, @Nullable Rotation rotation) {
+        return innerBlit(graphics, i, j, k, l, linear, (f + 0.0f) / p, (f + n) / p, (g + 0.0f) / q, (g + o) / q, translateX, translateY, rotation);
     }
 
     public static Map<RenderSetup, RegionAbstractTexture> TEXTURES = new WeakHashMap<>();
     public static Map<RenderSetup, Boolean> LINEAR = new WeakHashMap<>();
 
-    private BlitRenderState.Renderer innerBlit(GuiGraphics graphics, float i, float j, float k, float l, boolean linear, float f, float g, float h, float n, int translateX, int translateY) {
+    private BlitRenderState.Renderer innerBlit(GuiGraphics graphics, float i, float j, float k, float l, boolean linear, float f, float g, float h, float n, int translateX, int translateY, @Nullable Rotation rotation) {
         return (source, stack) -> {
             if (type == null) {
                 this.texture = new RegionAbstractTexture(this);
@@ -130,6 +136,9 @@ public class RegionAtlasTexture {
             int v = Minecraft.getInstance().getWindow().getGuiScale();
             stack.scale(v, v, 1);
             stack.translate(translateX, translateY, 0);
+            if (rotation != null) {
+                stack.rotateAround(Axis.ZP.rotation(rotation.radians()), rotation.pivotX(), rotation.pivotY(), 0);
+            }
             bufferBuilder.addVertex(stack.last(), i, l, 0).setUv(f, n).setColor(0xffffffff).setLight(0xff);
             bufferBuilder.addVertex(stack.last(), j, l, 0).setUv(g, n).setColor(0xffffffff).setLight(0xff);
             bufferBuilder.addVertex(stack.last(), j, k, 0).setUv(g, h).setColor(0xffffffff).setLight(0xff);

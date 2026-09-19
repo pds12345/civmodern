@@ -16,6 +16,7 @@ import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.Scoreboard;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
+import org.joml.Vector2d;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.state.GuiElementRenderState;
 import sh.okx.civmodern.common.AbstractCivModernMod;
@@ -156,15 +157,32 @@ public class Minimap {
         int playerBX = player.getBlockX();
         int playerBY = player.getBlockY();
         int playerBZ = player.getBlockZ();
-        float x = px - (size * zoom) / 2;
-        float y = pz - (size * zoom) / 2;
+
+        // Rotating mode turns the map so the player's facing direction points up. On a north-up map
+        // their facing is yaw degrees clockwise from down, so the map needs 180 - yaw to bring it
+        // up. The tiles then have to cover the square at any angle: draw a larger square, side
+        // size * sqrt(2), centred on the same point. What falls outside the outline is clipped by
+        // the picture's scissor (square) or the mask (circle), so the outline itself never moves.
+        boolean rotating = config.isMinimapRotating();
+        float yaw = player.getViewYRot(delta) % 360f;
+        float rotation = rotating ? (float) Math.toRadians(180f - yaw) : 0f;
+        float cos = (float) Math.cos(rotation);
+        float sin = (float) Math.sin(rotation);
+        int drawOffset = rotating ? (int) Math.ceil(size * (Math.sqrt(2) - 1) / 2) : 0;
+        float drawSize = size + 2 * drawOffset;
+        int drawX = translateX - drawOffset;
+        int drawY = translateY - drawOffset;
+        RegionAtlasTexture.Rotation tileRotation = rotating ? new RegionAtlasTexture.Rotation(rotation, drawSize / 2, drawSize / 2) : null;
+
+        float x = px - (drawSize * zoom) / 2;
+        float y = pz - (drawSize * zoom) / 2;
 
         float drawnX = 0;
         float drawnY = 0;
         List<BlitRenderState.Renderer> renderers = new ArrayList<>();
-        for (float screenX = 0; screenX < (size * zoom) + SIZE; screenX += SIZE) {
+        for (float screenX = 0; screenX < (drawSize * zoom) + SIZE; screenX += SIZE) {
             float tmp = 0;
-            for (float screenY = 0; screenY < (size * zoom) + SIZE; screenY += SIZE) {
+            for (float screenY = 0; screenY < (drawSize * zoom) + SIZE; screenY += SIZE) {
                 float realX = x + screenX;
                 float realY = y + screenY;
 
@@ -177,7 +195,7 @@ public class Minimap {
                 float yOff = (renderY - y) + 4096;
 
                 texture = texture == null ? blank : texture;
-                renderers.add(texture.drawLinear(graphics, drawnX, drawnY, zoom, screenX == 0 ? SIZE - xOff : 0, screenY == 0 ? SIZE - yOff : 0, SIZE, SIZE, Math.max(0, size * zoom - drawnX), Math.max(0, size * zoom - drawnY), translateX, translateY));
+                renderers.add(texture.drawLinear(graphics, drawnX, drawnY, zoom, screenX == 0 ? SIZE - xOff : 0, screenY == 0 ? SIZE - yOff : 0, SIZE, SIZE, Math.max(0, drawSize * zoom - drawnX), Math.max(0, drawSize * zoom - drawnY), drawX, drawY, tileRotation));
                 drawnY += screenY == 0 ? yOff : SIZE;
                 tmp += xOff;
             }
@@ -197,9 +215,11 @@ public class Minimap {
                 // element can only be scissored to a rectangle. The picture is in physical pixels,
                 // hence the extra GUI-scale factor on the pose.
                 int guiScale = mc.getWindow().getGuiScale();
-                Matrix3x2f picturePose = new Matrix3x2f().scale(guiScale).mul(matrices);
+                // Same enlarged, rotated viewport as the tiles, turned about the map's centre.
+                Matrix3x2f picturePose = new Matrix3x2f().scale(guiScale).mul(matrices)
+                    .translate(size / 2, size / 2).rotate(rotation).translate(-drawSize / 2, -drawSize / 2);
                 GuiElementRenderState batch = NodeOverlayRenderer.build(picturePose, null, null,
-                    nodes, config, nodeMode, x, y, (int) size, (int) size, zoom);
+                    nodes, config, nodeMode, x, y, (int) drawSize, (int) drawSize, zoom);
                 if (batch != null) {
                     renderers.add((source, stack) -> {
                         source.endBatch(); // tiles first: the buffer source flushes in no fixed order
@@ -218,15 +238,23 @@ public class Minimap {
         } else {
             graphics.fill(0, 0, (int) (size + 4), (int) (size + 4), borderColour);
         }
+        // The composited picture is clipped to the outline, so rotated tiles never show outside it.
+        ScreenRectangle mapArea = new ScreenRectangle(translateX, translateY, (int) size, (int) size);
+        ScreenRectangle outerScissor = graphics.scissorStack.peek();
+        ScreenRectangle pictureScissor = outerScissor != null ? outerScissor.intersection(mapArea) : mapArea;
         graphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(graphics, 0, 0, translateX + config.getMinimapSize(), translateY + config.getMinimapSize(), matrices,
-            ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
+            pictureScissor, ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
 
         if (drawNodes && !circular) {
             matrices.pushMatrix();
             // Back onto the map area: the pose currently sits at the border's corner, 2px out.
             matrices.translate(2, 2);
-            NodeOverlayRenderer.render(graphics, nodes, config, nodeMode, x, y, (int) size, (int) size, zoom,
-                new ScreenRectangle(translateX, translateY, (int) size, (int) size));
+            // Same enlarged, rotated viewport as the tiles, turned about the map's centre and
+            // scissored to the square.
+            matrices.translate(size / 2, size / 2);
+            matrices.rotate(rotation);
+            matrices.translate(-drawSize / 2, -drawSize / 2);
+            NodeOverlayRenderer.render(graphics, nodes, config, nodeMode, x, y, (int) drawSize, (int) drawSize, zoom, mapArea);
             matrices.popMatrix();
         }
 
@@ -258,8 +286,9 @@ public class Minimap {
 
                 float ex = (float) Mth.lerp(delta, entity.xo, entity.getX());
                 float ez = (float) Mth.lerp(delta, entity.zo, entity.getZ());
-                double tx = (ex - x) / zoom;
-                double ty = (ez - y) / zoom;
+                Vector2d at = onMap((ex - x) / zoom, (ez - y) / zoom, drawOffset, size, cos, sin);
+                double tx = at.x;
+                double ty = at.y;
                 if (outside(tx, ty, size, circular)) {
                     continue;
                 }
@@ -285,8 +314,9 @@ public class Minimap {
                 // TODO cycle between players on the same snitch
                 double wx = waypoint.x() + 0.5;
                 double wz = waypoint.z() + 0.5;
-                double tx = (wx - x) / zoom;
-                double ty = (wz - y) / zoom;
+                Vector2d at = onMap((wx - x) / zoom, (wz - y) / zoom, drawOffset, size, cos, sin);
+                double tx = at.x;
+                double ty = at.y;
                 if (outside(tx, ty, size, circular)) {
                     continue;
                 }
@@ -314,8 +344,9 @@ public class Minimap {
                 for (Waypoint waypoint : waypointGroup) {
                     double wx = waypoint.x() + 0.5;
                     double wz = waypoint.z() + 0.5;
-                    double tx = (wx - x) / zoom;
-                    double ty = (wz - y) / zoom;
+                    Vector2d at = onMap((wx - x) / zoom, (wz - y) / zoom, drawOffset, size, cos, sin);
+                    double tx = at.x;
+                    double ty = at.y;
                     if (outside(tx, ty, size, circular)) {
                         continue;
                     }
@@ -334,7 +365,8 @@ public class Minimap {
         if (live) {
             matrices.pushMatrix();
             matrices.translate(size / 2, size / 2);
-            matrices.rotate((float) Math.toRadians(player.getViewYRot(delta) % 360f));
+            // On a rotating map the player always faces up, so the chevron stays pointing up.
+            matrices.rotate(rotating ? (float) Math.PI : (float) Math.toRadians(yaw));
             matrices.scale(4, 4);
             int chevronColour = provider.getChevronColour() | 0xFF000000;
             matrices.translate(0, 0.75f);
@@ -352,6 +384,18 @@ public class Minimap {
     private float floatMod(float x, float y) {
         // x mod y behaving the same way as Math.floorMod but with floats
         return (x - (float) Math.floor(x / y) * y);
+    }
+
+    /**
+     * Where a point {@code tx}, {@code ty} pixels from the tile origin lands on the minimap, in
+     * pixels from the outline's top-left, after the map's rotation about its centre. Icons stay
+     * upright; only their positions turn.
+     */
+    private static Vector2d onMap(double tx, double ty, int drawOffset, float size, float cos, float sin) {
+        double r = size / 2.0;
+        double dx = tx - drawOffset - r;
+        double dy = ty - drawOffset - r;
+        return new Vector2d(r + dx * cos - dy * sin, r + dx * sin + dy * cos);
     }
 
     /** Whether an icon centred at ({@code tx}, {@code ty}) in map pixels falls off the minimap. */

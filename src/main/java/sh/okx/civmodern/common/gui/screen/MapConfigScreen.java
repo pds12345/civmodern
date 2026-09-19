@@ -167,6 +167,7 @@ public class MapConfigScreen extends AbstractConfigScreen {
         addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.rotate"), this.config::isMinimapRotating, this.config::setMinimapRotating, null, ToggleButton.DEFAULT_NARRATION));
         offset += 24;
         addBodyWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.edgewaypoints"), this.config::isMinimapEdgeWaypoints, this.config::setMinimapEdgeWaypoints, null, ToggleButton.DEFAULT_NARRATION));
+        addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.snitches"), this.config::isSnitchesEnabled, this.config::setSnitchesEnabled, Tooltip.create(Component.translatable("civmodern.screen.map.snitches.tooltip")), ToggleButton.DEFAULT_NARRATION));
         offset += 20 + 6;
         // Divider between the minimap settings above and the waypoint/map settings below.
         HorizontalRule rule = addRenderableOnly(new HorizontalRule(left, right + 150, offset, 0x80FFFFFF));

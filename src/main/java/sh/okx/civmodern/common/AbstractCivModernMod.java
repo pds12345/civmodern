@@ -33,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 import sh.okx.civmodern.common.navigation.AutoNavigation;
 import sh.okx.civmodern.common.events.*;
+import sh.okx.civmodern.common.features.ContainerDump;
 import sh.okx.civmodern.common.gui.screen.MainConfigScreen;
 import sh.okx.civmodern.common.macro.AttackMacro;
 import sh.okx.civmodern.common.macro.HoldKeyMacro;
@@ -71,6 +72,7 @@ public abstract class AbstractCivModernMod {
     private CivMapConfig config;
     private ColourProvider colourProvider;
     private Radar radar;
+    private final ContainerDump containerDump = new ContainerDump();
 
     private WorldListener worlds;
     private AutoNavigation autoNavigation;
@@ -188,6 +190,7 @@ public abstract class AbstractCivModernMod {
         this.eventBus.register(this.worlds);
 
         this.eventBus.register(this.radar);
+        this.eventBus.register(this.containerDump);
 
         this.eventBus.register(this.nodeApi);
 
@@ -229,6 +232,44 @@ public abstract class AbstractCivModernMod {
         // last S2C_REGION, so a disagreement with /nodeprint can be pinned on one side or the other.
         registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_nodedump").executes(context -> {
             dumpLastRegion();
+            return 0;
+        }));
+
+        // Own snitches captured from /jalist: how many are known, or forget them all.
+        registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_snitches")
+            .executes(context -> {
+                LocalPlayer player = Minecraft.getInstance().player;
+                if (player == null) {
+                    return 0;
+                }
+                if (worlds.getSnitches() == null) {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.noworld"), false);
+                } else {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.count", worlds.getSnitches().size()), false);
+                }
+                return 0;
+            })
+            .then(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("clear").executes(context -> {
+                LocalPlayer player = Minecraft.getInstance().player;
+                if (player == null) {
+                    return 0;
+                }
+                if (worlds.getSnitches() == null) {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.noworld"), false);
+                } else {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.cleared", worlds.getSnitches().clear()), false);
+                }
+                return 0;
+            })));
+
+        // Records the next container GUI (every page of it) to civmodern/container-dump.txt, to
+        // learn a server GUI's exact item names and lore before writing a parser for it.
+        registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_containerdump").executes(context -> {
+            containerDump.arm();
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player != null) {
+                player.displayClientMessage(Component.literal("Armed: the next container you open will be recorded, page by page, until you close it."), false);
+            }
             return 0;
         }));
     }
@@ -302,7 +343,7 @@ public abstract class AbstractCivModernMod {
             return;
         }
         openScreen("map", () -> {
-            MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints());
+            MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints(), worlds.getSnitches());
             setup.accept(screen);
             return screen;
         });

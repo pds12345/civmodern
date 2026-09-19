@@ -29,6 +29,9 @@ import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
+import sh.okx.civmodern.common.map.snitches.Snitch;
+import sh.okx.civmodern.common.map.snitches.SnitchRenderer;
+import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -52,6 +55,7 @@ public class Minimap {
 
     private final Waypoints waypoints;
     private final PlayerWaypoints playerWaypoints;
+    private final Snitches snitches;
     private final MapCache cache;
     private final NodeCache nodes;
     private final CivMapConfig config;
@@ -75,9 +79,10 @@ public class Minimap {
     }
 
 
-    public Minimap(Waypoints waypoints, PlayerWaypoints playerWaypoints, MapCache cache, NodeCache nodes, CivMapConfig config, ColourProvider provider) {
+    public Minimap(Waypoints waypoints, PlayerWaypoints playerWaypoints, Snitches snitches, MapCache cache, NodeCache nodes, CivMapConfig config, ColourProvider provider) {
         this.waypoints = waypoints;
         this.playerWaypoints = playerWaypoints;
+        this.snitches = snitches;
         this.cache = cache;
         this.nodes = nodes;
         this.config = config;
@@ -329,6 +334,22 @@ public class Minimap {
                 boolean old = waypoint.timestamp().until(Instant.now(), ChronoUnit.MINUTES) >= 10;
                 int colour = (old ? 0x77 : 0xFF) << 24 | 0xFFFFFF;
                 waypoint.render(graphics, colour);
+                matrices.popMatrix();
+            }
+        }
+
+        // Own snitches, placed and culled like the snitched players above; no edge markers.
+        if (live && config.isSnitchesEnabled() && snitches != null) {
+            Instant now = Instant.now();
+            for (Snitch snitch : snitches.getSnitches()) {
+                Vector2d at = onMap((snitch.x() + 0.5 - x) / zoom, (snitch.z() + 0.5 - y) / zoom, drawOffset, size, cos, sin);
+                if (outside(at.x, at.y, size, circular)) {
+                    continue;
+                }
+                matrices.pushMatrix();
+                matrices.translate((float) at.x, (float) at.y);
+                matrices.scale(iconScale, iconScale);
+                SnitchRenderer.render(graphics, snitch, now);
                 matrices.popMatrix();
             }
         }

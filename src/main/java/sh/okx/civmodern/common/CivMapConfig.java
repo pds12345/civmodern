@@ -72,6 +72,7 @@ public class CivMapConfig {
     private boolean minimapCircular;
     private boolean minimapRotating;
     private boolean minimapEdgeWaypoints;
+    private boolean snitchesEnabled;
     private int borderColour;
     private NodeOverlayMode nodeOverlayMode;
     private NodeOverlayMode minimapNodeOverlayMode;
@@ -143,6 +144,7 @@ public class CivMapConfig {
         this.minimapCircular = Boolean.parseBoolean(properties.getProperty("minimap_circular", "false"));
         this.minimapRotating = Boolean.parseBoolean(properties.getProperty("minimap_rotate", "false"));
         this.minimapEdgeWaypoints = Boolean.parseBoolean(properties.getProperty("minimap_edge_waypoints", "true"));
+        this.snitchesEnabled = Boolean.parseBoolean(properties.getProperty("show_snitches", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
         // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
@@ -236,6 +238,7 @@ public class CivMapConfig {
             properties.setProperty("minimap_circular", Boolean.toString(minimapCircular));
             properties.setProperty("minimap_rotate", Boolean.toString(minimapRotating));
             properties.setProperty("minimap_edge_waypoints", Boolean.toString(minimapEdgeWaypoints));
+            properties.setProperty("show_snitches", Boolean.toString(snitchesEnabled));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
@@ -631,6 +634,15 @@ public class CivMapConfig {
 
     public void setMinimapEdgeWaypoints(boolean minimapEdgeWaypoints) {
         this.minimapEdgeWaypoints = minimapEdgeWaypoints;
+    }
+
+    /** Whether the player's own snitches (from /jalist) are drawn on the map and minimap. */
+    public boolean isSnitchesEnabled() {
+        return snitchesEnabled;
+    }
+
+    public void setSnitchesEnabled(boolean snitchesEnabled) {
+        this.snitchesEnabled = snitchesEnabled;
     }
 
     public void setBorderColour(int borderColour) {

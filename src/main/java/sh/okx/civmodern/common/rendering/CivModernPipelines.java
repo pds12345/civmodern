@@ -48,6 +48,20 @@ public class CivModernPipelines {
         .withCull(false)
         .build();
 
+    // Punches the corners out of the circular minimap's offscreen picture. The blend function
+    // zeroes both source and destination, so whatever tiles were drawn there become transparent
+    // black and the world shows through once the picture is composited. The quads themselves are
+    // drawn opaque: the GUI fragment shader discards alpha-zero fragments, so a transparent quad
+    // would never reach the texture at all.
+    public static final RenderPipeline MINIMAP_MASK = RenderPipeline.builder(RenderPipelines.GUI_SNIPPET)
+        .withLocation(Identifier.fromNamespaceAndPath("civmodern", "pipeline/minimap_mask"))
+        .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
+        .withBlend(new BlendFunction(SourceFactor.ZERO, DestFactor.ZERO))
+        .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+        .withDepthWrite(false)
+        .withCull(false)
+        .build();
+
     public static final RenderPipeline.Snippet MATRICES_PROJECTION_SNIPPET = RenderPipeline.builder().withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER).withUniform("Projection", UniformType.UNIFORM_BUFFER).buildSnippet();
     public static final RenderPipeline.Snippet COLOR_WRITE = RenderPipeline.builder().withColorWrite(true).withDepthWrite(false).buildSnippet();
     public static final RenderPipeline.Snippet POSITION_TEX_COLOR_SHADER = RenderPipeline.builder(MATRICES_PROJECTION_SNIPPET).withLocation("cm/pipeline/position_tex_color").withVertexShader("core/position_tex_color").withFragmentShader("core/position_tex_color").withSampler("Sampler0").buildSnippet();
@@ -58,6 +72,7 @@ public class CivModernPipelines {
         RenderPipelines.register(TEXT);
         RenderPipelines.register(TEXT2);
         RenderPipelines.register(COLUMN);
+        RenderPipelines.register(MINIMAP_MASK);
         RenderPipelines.register(REGION_DEFAULT_RENDER_PIPELINE);
     }
 }

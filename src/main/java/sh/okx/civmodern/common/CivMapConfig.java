@@ -69,6 +69,7 @@ public class CivMapConfig {
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
+    private boolean minimapCircular;
     private int borderColour;
     private NodeOverlayMode nodeOverlayMode;
     private NodeOverlayMode minimapNodeOverlayMode;
@@ -137,6 +138,7 @@ public class CivMapConfig {
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
+        this.minimapCircular = Boolean.parseBoolean(properties.getProperty("minimap_circular", "false"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
         // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
@@ -227,6 +229,7 @@ public class CivMapConfig {
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
+            properties.setProperty("minimap_circular", Boolean.toString(minimapCircular));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
@@ -596,6 +599,14 @@ public class CivMapConfig {
 
     public void setShowMinimapCoords(boolean showMinimapCoords) {
         this.showMinimapCoords = showMinimapCoords;
+    }
+
+    public boolean isMinimapCircular() {
+        return minimapCircular;
+    }
+
+    public void setMinimapCircular(boolean minimapCircular) {
+        this.minimapCircular = minimapCircular;
     }
 
     public void setBorderColour(int borderColour) {

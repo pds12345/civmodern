@@ -3,6 +3,7 @@ package sh.okx.civmodern.common.map;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -414,7 +415,49 @@ public class Minimap {
             matrices.popMatrix();
         }
 
+        // On a rotating map north is wherever the player is not facing, so label the outline.
+        // A fixed map is always north-up and needs no labels.
+        if (rotating) {
+            drawCardinals(graphics, mc.font, size, circular, cos, sin);
+        }
+
         matrices.popMatrix();
+    }
+
+    /** World directions of the cardinal labels, in map pixels on a north-up map: north is -z. */
+    private static final String[] CARDINAL_LABELS = {"N", "E", "S", "W"};
+    private static final int[] CARDINAL_DX = {0, 1, 0, -1};
+    private static final int[] CARDINAL_DY = {-1, 0, 1, 0};
+
+    /**
+     * Draws N/E/S/W centred on the outline, each on the line from the map's centre in that
+     * direction after the map's rotation, so they turn with the terrain while the letters stay
+     * upright. A translucent backing keeps them legible over the border and any terrain.
+     */
+    private static void drawCardinals(GuiGraphics graphics, Font font, float size, boolean circular, float cos, float sin) {
+        double r = size / 2.0;
+        for (int i = 0; i < CARDINAL_LABELS.length; i++) {
+            String label = CARDINAL_LABELS[i];
+            int dx = CARDINAL_DX[i];
+            int dy = CARDINAL_DY[i];
+            // Same rotation onMap applies to icon positions.
+            double rx = dx * cos - dy * sin;
+            double ry = dx * sin + dy * cos;
+            Vector2d at = onEdge(r + rx, r + ry, size, circular);
+            // Drawn at the origin of a pose moved by the exact position rather than at rounded
+            // coordinates, so the label glides along the outline instead of stepping pixel by pixel.
+            Matrix3x2fStack matrices = graphics.pose();
+            matrices.pushMatrix();
+            matrices.translate((float) at.x, (float) at.y);
+            // font.width counts the glyph plus its 1px spacing; centre on the glyph itself.
+            int width = font.width(label) - 1;
+            int left = -width / 2 - 1;
+            // Capitals are 7 rows tall; centre those on the outline, with a 1px margin all round.
+            int top = -3;
+            graphics.fill(left - 1, top - 1, left + width + 2, top + 8, 0xA0000000);
+            graphics.drawString(font, label, left + 1, top, i == 0 ? 0xFFFF5555 : 0xFFFFFFFF, false);
+            matrices.popMatrix();
+        }
     }
 
     private float floatMod(float x, float y) {

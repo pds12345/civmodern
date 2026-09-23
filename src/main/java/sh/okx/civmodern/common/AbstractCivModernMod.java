@@ -47,6 +47,7 @@ import sh.okx.civmodern.common.map.screen.QuickWaypointScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.parser.ParsedWaypoint;
 import sh.okx.civmodern.common.radar.Radar;
+import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderer;
 import sh.okx.civmodern.common.rendering.BlitRenderer;
 import sh.okx.civmodern.common.rendering.CivModernPipelines;
 
@@ -164,6 +165,7 @@ public abstract class AbstractCivModernMod {
 
     public final void init() {
         SpecialGuiElementRegistry.register(ctx -> new BlitRenderer(ctx.vertexConsumers()));
+        SpecialGuiElementRegistry.register(ctx -> new SnitchLayerRenderer(ctx.vertexConsumers()));
         CivModernPipelines.register();
 
         registerKeyBinding(this.configBinding);

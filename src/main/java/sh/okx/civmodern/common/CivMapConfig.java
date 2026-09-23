@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
 import sh.okx.civmodern.common.map.mobs.MinimapMobTypes;
 import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
-import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
+import sh.okx.civmodern.common.map.OverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 public class CivMapConfig {
@@ -73,9 +73,11 @@ public class CivMapConfig {
     private boolean minimapRotating;
     private boolean minimapEdgeWaypoints;
     private boolean snitchesEnabled;
+    private OverlayMode snitchLayerMode;
+    private float snitchTranslucentOpacity;
     private int borderColour;
-    private NodeOverlayMode nodeOverlayMode;
-    private NodeOverlayMode minimapNodeOverlayMode;
+    private OverlayMode nodeOverlayMode;
+    private OverlayMode minimapNodeOverlayMode;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private float nodeTranslucentOpacity;
@@ -145,6 +147,8 @@ public class CivMapConfig {
         this.minimapRotating = Boolean.parseBoolean(properties.getProperty("minimap_rotate", "false"));
         this.minimapEdgeWaypoints = Boolean.parseBoolean(properties.getProperty("minimap_edge_waypoints", "true"));
         this.snitchesEnabled = Boolean.parseBoolean(properties.getProperty("show_snitches", "true"));
+        this.snitchLayerMode = OverlayMode.fromString(properties.getProperty("snitch_layer_mode", "on"));
+        this.snitchTranslucentOpacity = Float.parseFloat(properties.getProperty("snitch_translucent_opacity", "0.4"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
         // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
@@ -152,10 +156,10 @@ public class CivMapConfig {
         if (overlayMode == null) {
             overlayMode = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true")) ? "on" : "off";
         }
-        this.nodeOverlayMode = NodeOverlayMode.fromString(overlayMode);
+        this.nodeOverlayMode = OverlayMode.fromString(overlayMode);
         // Off unless asked for: the minimap is glanced at in fights, so territory colour joins it
         // only when the player opts in (the toggle keybind, default Y).
-        this.minimapNodeOverlayMode = NodeOverlayMode.fromString(
+        this.minimapNodeOverlayMode = OverlayMode.fromString(
             properties.getProperty("minimap_node_overlay_mode", "off"));
         this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
@@ -239,6 +243,8 @@ public class CivMapConfig {
             properties.setProperty("minimap_rotate", Boolean.toString(minimapRotating));
             properties.setProperty("minimap_edge_waypoints", Boolean.toString(minimapEdgeWaypoints));
             properties.setProperty("show_snitches", Boolean.toString(snitchesEnabled));
+            properties.setProperty("snitch_layer_mode", snitchLayerMode.name().toLowerCase());
+            properties.setProperty("snitch_translucent_opacity", Float.toString(snitchTranslucentOpacity));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
@@ -645,6 +651,31 @@ public class CivMapConfig {
         this.snitchesEnabled = snitchesEnabled;
     }
 
+    /**
+     * How the snitch layer is drawn on the map screen, if at all. Applies on top of
+     * {@link #isSnitchesEnabled()}: that is the master switch for the map and minimap alike, this
+     * only fades or hides the map's layer. The minimap always draws the layer solid.
+     */
+    public OverlayMode getSnitchLayerMode() {
+        return snitchLayerMode;
+    }
+
+    public void setSnitchLayerMode(OverlayMode snitchLayerMode) {
+        this.snitchLayerMode = snitchLayerMode;
+    }
+
+    /**
+     * Opacity of the snitch layer on the map in its translucent mode. The layer fades as a whole,
+     * so where snitches overlap they do not pile up into an opaque blot.
+     */
+    public float getSnitchTranslucentOpacity() {
+        return snitchTranslucentOpacity;
+    }
+
+    public void setSnitchTranslucentOpacity(float snitchTranslucentOpacity) {
+        this.snitchTranslucentOpacity = snitchTranslucentOpacity;
+    }
+
     public void setBorderColour(int borderColour) {
         this.borderColour = borderColour;
     }
@@ -654,11 +685,11 @@ public class CivMapConfig {
     }
 
     /** How the overlay is drawn on the map, if at all. Independent of whether the server is queried. */
-    public NodeOverlayMode getNodeOverlayMode() {
+    public OverlayMode getNodeOverlayMode() {
         return nodeOverlayMode;
     }
 
-    public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
+    public void setNodeOverlayMode(OverlayMode nodeOverlayMode) {
         this.nodeOverlayMode = nodeOverlayMode;
         // The two overlays colour the same map tiles, so showing one always hides the other - both
         // toggles live here rather than in the screen so this holds regardless of entry point.
@@ -668,11 +699,11 @@ public class CivMapConfig {
     }
 
     /** How the overlay is drawn on the minimap. Deliberately independent of the map's mode. */
-    public NodeOverlayMode getMinimapNodeOverlayMode() {
+    public OverlayMode getMinimapNodeOverlayMode() {
         return minimapNodeOverlayMode;
     }
 
-    public void setMinimapNodeOverlayMode(NodeOverlayMode minimapNodeOverlayMode) {
+    public void setMinimapNodeOverlayMode(OverlayMode minimapNodeOverlayMode) {
         this.minimapNodeOverlayMode = minimapNodeOverlayMode;
     }
 
@@ -751,7 +782,7 @@ public class CivMapConfig {
     public void setBiomeOverlayEnabled(boolean biomeOverlayEnabled) {
         this.biomeOverlayEnabled = biomeOverlayEnabled;
         if (biomeOverlayEnabled && nodeOverlayMode.isVisible()) {
-            this.nodeOverlayMode = NodeOverlayMode.OFF;
+            this.nodeOverlayMode = OverlayMode.OFF;
         }
     }
 

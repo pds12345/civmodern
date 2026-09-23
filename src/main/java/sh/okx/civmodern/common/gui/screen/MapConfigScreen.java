@@ -241,6 +241,27 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.columnsenabled"), config::isColumnsEnabled, config::setColumnsEnabled, null, ToggleButton.DEFAULT_NARRATION));
         offset += 24;
+        // The map's snitch button cycles solid, translucent and hidden; this is the translucent strength.
+        DoubleOptionUpdateableSliderWidget snitchOpacity = new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0.05, 1.0, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getSnitchTranslucentOpacity();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setSnitchTranslucentOpacity((float) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.map.snitchopacity",
+                    Math.round(value * 100) + "%");
+            }
+        });
+        snitchOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.snitchopacity.tooltip")));
+        addBodyWidget(snitchOpacity);
+        offset += 24;
         // The four waypoint-size numbers are edited on their own screen, where the effect is visible.
         AbstractCivModernMod mod = AbstractCivModernMod.getInstance();
         WorldListener worldListener = mod.getWorldListener();

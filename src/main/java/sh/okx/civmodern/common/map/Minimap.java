@@ -27,7 +27,6 @@ import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
 import sh.okx.civmodern.common.map.mobs.MinimapMobTypes;
 import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
-import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.snitches.Snitch;
@@ -213,7 +212,7 @@ public class Minimap {
 
         boolean circular = config.isMinimapCircular();
         // Node territory over the tiles, under the waypoints and chevron — as on the map screen.
-        NodeOverlayMode nodeMode = config.getMinimapNodeOverlayMode();
+        OverlayMode nodeMode = config.getMinimapNodeOverlayMode();
         boolean drawNodes = live && nodeMode.isVisible() && nodes != null
             && AbstractCivModernMod.getInstance().getNodeApi().isAvailable();
 
@@ -231,7 +230,7 @@ public class Minimap {
                 if (batch != null) {
                     renderers.add((source, stack) -> {
                         source.endBatch(); // tiles first: the buffer source flushes in no fixed order
-                        batch.buildVertices(source.getBuffer(CivModernRenderTypes.MINIMAP_NODES));
+                        batch.buildVertices(source.getBuffer(CivModernRenderTypes.PICTURE_QUADS));
                     });
                 }
             }

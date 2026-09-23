@@ -64,6 +64,9 @@ public class MapConfigScreen extends AbstractConfigScreen {
     private record BodyEntry(int naturalY, IntConsumer reposition) {
     }
 
+    private static final int MIN_WAYPOINT_DISTANCE = 100;
+    private static final int MAX_WAYPOINT_DISTANCE = 30000;
+
     private double scrollAmount = 0;
     private int viewportTop;
     private int viewportBottom;
@@ -188,21 +191,26 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }
         addBodyWidget(managerButton);
         offset += 24;
-        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 100, 5000, new DoubleValue() {
+        // On a log scale: a linear slider over 100..30000 would cram the useful few hundred to
+        // few thousand blocks into its first pixels. The slider works in log10, so get(), set()
+        // and getText() all convert. Saved values snap to two significant figures, so the
+        // graduations grow with the distance: steps of 10 up to 1000, 100 up to 10000, then 1000.
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20,
+            Math.log10(MIN_WAYPOINT_DISTANCE), Math.log10(MAX_WAYPOINT_DISTANCE), new DoubleValue() {
             @Override
             public double get() {
-                return config.getWaypointRenderDistance();
+                return Math.log10(Mth.clamp(config.getWaypointRenderDistance(), MIN_WAYPOINT_DISTANCE, MAX_WAYPOINT_DISTANCE));
             }
 
             @Override
             public void set(double value) {
-                config.setWaypointRenderDistance((int) value);
+                config.setWaypointRenderDistance(snapDistance(Math.pow(10, value)));
             }
 
             @Override
             public Component getText(double value) {
                 return Component.translatable("civmodern.screen.map.waypointdistance",
-                    Integer.toString((int) value));
+                    Integer.toString(snapDistance(Math.pow(10, value))));
             }
         }));
         addBodyWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 2, 32, new DoubleValue() {
@@ -295,6 +303,13 @@ public class MapConfigScreen extends AbstractConfigScreen {
             config.save();
             Minecraft.getInstance().setScreen(parent);
         }).pos(centre, doneY).size(150, 20).build()));
+    }
+
+    /** Rounds a waypoint distance to two significant figures, within the slider's bounds. */
+    private static int snapDistance(double distance) {
+        double clamped = Mth.clamp(distance, MIN_WAYPOINT_DISTANCE, MAX_WAYPOINT_DISTANCE);
+        double step = Math.pow(10, Math.floor(Math.log10(clamped)) - 1);
+        return (int) Mth.clamp(Math.round(clamped / step) * step, MIN_WAYPOINT_DISTANCE, MAX_WAYPOINT_DISTANCE);
     }
 
     /** A button opening a size preview screen, which needs the map and minimap and so a world. */

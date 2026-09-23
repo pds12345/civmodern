@@ -17,6 +17,7 @@ import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.map.WorldListener;
 import sh.okx.civmodern.common.map.screen.WaypointManagerScreen;
+import sh.okx.civmodern.common.map.screen.SnitchSizePreviewScreen;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 import sh.okx.civmodern.common.gui.DoubleValue;
@@ -262,22 +263,13 @@ public class MapConfigScreen extends AbstractConfigScreen {
         snitchOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.snitchopacity.tooltip")));
         addBodyWidget(snitchOpacity);
         offset += 24;
-        // The four waypoint-size numbers are edited on their own screen, where the effect is visible.
+        // The icon-size numbers are edited on their own screens, where the effect is visible.
         AbstractCivModernMod mod = AbstractCivModernMod.getInstance();
         WorldListener worldListener = mod.getWorldListener();
-        boolean inWorld = worldListener.getCache() != null && worldListener.getMinimap() != null;
-        Button previewButton = Button.builder(Component.translatable("civmodern.screen.map.waypointpreview"), button -> {
-            if (inWorld) {
-                Minecraft.getInstance().setScreen(new WaypointSizePreviewScreen(this, config,
-                    worldListener.getCache(), worldListener.getMinimap(), mod.getMinimapZoomBinding()));
-            }
-        }).pos(centre, offset).size(150, 20).build();
-        // Needs the map and minimap, which only exist inside a world.
-        previewButton.active = inWorld;
-        if (!inWorld) {
-            previewButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
-        }
-        addBodyWidget(previewButton);
+        addPreviewButton(left, offset, "civmodern.screen.map.waypointpreview", () -> new WaypointSizePreviewScreen(this, config,
+            worldListener.getCache(), worldListener.getMinimap(), mod.getMinimapZoomBinding()));
+        addPreviewButton(right, offset, "civmodern.screen.map.snitchpreview", () -> new SnitchSizePreviewScreen(this, config,
+            worldListener.getCache(), worldListener.getMinimap(), mod.getMinimapZoomBinding()));
         offset += 24;
 
         chevronPicker = addColourPicker("Chevron colour", left, offset, CivMapConfig.DEFAULT_CHEVRON_COLOUR, config::getChevronColour, config::setChevronColour,
@@ -303,6 +295,22 @@ public class MapConfigScreen extends AbstractConfigScreen {
             config.save();
             Minecraft.getInstance().setScreen(parent);
         }).pos(centre, doneY).size(150, 20).build()));
+    }
+
+    /** A button opening a size preview screen, which needs the map and minimap and so a world. */
+    private void addPreviewButton(int x, int y, String key, Supplier<Screen> screen) {
+        WorldListener worldListener = AbstractCivModernMod.getInstance().getWorldListener();
+        boolean inWorld = worldListener.getCache() != null && worldListener.getMinimap() != null;
+        Button button = Button.builder(Component.translatable(key), b -> {
+            if (inWorld) {
+                Minecraft.getInstance().setScreen(screen.get());
+            }
+        }).pos(x, y).size(150, 20).build();
+        button.active = inWorld;
+        if (!inWorld) {
+            button.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
+        }
+        addBodyWidget(button);
     }
 
     private <T extends AbstractWidget> T addBodyWidget(T widget) {

@@ -65,6 +65,10 @@ public class CivMapConfig {
     private float waypointZoomLogBase;
     private float minimapIconBaseZoom;
     private float minimapIconZoomLogBase;
+    private float snitchBaseZoom;
+    private float snitchZoomLogBase;
+    private float minimapSnitchBaseZoom;
+    private float minimapSnitchZoomLogBase;
     private float maxZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
@@ -139,6 +143,12 @@ public class CivMapConfig {
         // screen's, so it gets its own base zoom and log base.
         this.minimapIconBaseZoom = Float.parseFloat(properties.getProperty("minimap_icon_base_zoom", "0.5"));
         this.minimapIconZoomLogBase = Float.parseFloat(properties.getProperty("minimap_icon_zoom_log_base", "3"));
+        // Snitch icons scale by the same formula but with numbers of their own, defaulting to the
+        // waypoints' defaults so they shrink in step until somebody tunes them apart.
+        this.snitchBaseZoom = Float.parseFloat(properties.getProperty("snitch_base_zoom", "0.03125"));
+        this.snitchZoomLogBase = Float.parseFloat(properties.getProperty("snitch_zoom_log_base", "3"));
+        this.minimapSnitchBaseZoom = Float.parseFloat(properties.getProperty("minimap_snitch_base_zoom", "0.5"));
+        this.minimapSnitchZoomLogBase = Float.parseFloat(properties.getProperty("minimap_snitch_zoom_log_base", "3"));
         // Furthest-out zoom level (blocks per pixel) the map screen allows scrolling to.
         this.maxZoom = Float.parseFloat(properties.getProperty("max_zoom", "32"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
@@ -237,6 +247,10 @@ public class CivMapConfig {
             properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
             properties.setProperty("minimap_icon_base_zoom", Float.toString(minimapIconBaseZoom));
             properties.setProperty("minimap_icon_zoom_log_base", Float.toString(minimapIconZoomLogBase));
+            properties.setProperty("snitch_base_zoom", Float.toString(snitchBaseZoom));
+            properties.setProperty("snitch_zoom_log_base", Float.toString(snitchZoomLogBase));
+            properties.setProperty("minimap_snitch_base_zoom", Float.toString(minimapSnitchBaseZoom));
+            properties.setProperty("minimap_snitch_zoom_log_base", Float.toString(minimapSnitchZoomLogBase));
             properties.setProperty("max_zoom", Float.toString(maxZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
@@ -585,6 +599,42 @@ public class CivMapConfig {
 
     public void setMinimapIconZoomLogBase(float minimapIconZoomLogBase) {
         this.minimapIconZoomLogBase = minimapIconZoomLogBase;
+    }
+
+    /** Map zoom (blocks per pixel) up to which snitch icons are drawn at full size. */
+    public float getSnitchBaseZoom() {
+        return snitchBaseZoom;
+    }
+
+    public void setSnitchBaseZoom(float snitchBaseZoom) {
+        this.snitchBaseZoom = snitchBaseZoom;
+    }
+
+    /** How quickly snitch icons shrink on the map past the base zoom; see {@code WaypointScaling}. */
+    public float getSnitchZoomLogBase() {
+        return snitchZoomLogBase;
+    }
+
+    public void setSnitchZoomLogBase(float snitchZoomLogBase) {
+        this.snitchZoomLogBase = snitchZoomLogBase;
+    }
+
+    /** Minimap zoom (blocks per pixel) up to which snitch icons are drawn at full size. */
+    public float getMinimapSnitchBaseZoom() {
+        return minimapSnitchBaseZoom;
+    }
+
+    public void setMinimapSnitchBaseZoom(float minimapSnitchBaseZoom) {
+        this.minimapSnitchBaseZoom = minimapSnitchBaseZoom;
+    }
+
+    /** How quickly snitch icons shrink on the minimap past the base zoom. */
+    public float getMinimapSnitchZoomLogBase() {
+        return minimapSnitchZoomLogBase;
+    }
+
+    public void setMinimapSnitchZoomLogBase(float minimapSnitchZoomLogBase) {
+        this.minimapSnitchZoomLogBase = minimapSnitchZoomLogBase;
     }
 
     public float getMaxZoom() {

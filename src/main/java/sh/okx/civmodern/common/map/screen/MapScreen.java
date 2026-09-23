@@ -473,8 +473,9 @@ public class MapScreen extends Screen {
         // Own snitches, placed like the snitched players above, but drawn offscreen as one layer
         // so the translucent mode fades overlapping icons together (see SnitchLayerRenderer).
         if (snitchLayerVisible()) {
+            float snitchScale = snitchScale();
             // Only what is on screen: zoomed out, the list holds the whole world's snitches.
-            float margin = (SnitchRenderer.HALF + 1) * waypointScale;
+            float margin = (SnitchRenderer.HALF + 1) * snitchScale;
             int screenWidth = window.getGuiScaledWidth();
             int screenHeight = window.getGuiScaledHeight();
             List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
@@ -488,7 +489,7 @@ public class MapScreen extends Screen {
             float opacity = config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
             guiGraphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
                 new Matrix3x2f(matrices), window.getGuiScale(), 0, 0, screenWidth, screenHeight,
-                placements, waypointScale, Instant.now(), opacity, guiGraphics.scissorStack.peek()));
+                placements, snitchScale, Instant.now(), opacity, guiGraphics.scissorStack.peek()));
         }
 
 //        RenderSystem.depthFunc(GL_LEQUAL);
@@ -806,6 +807,11 @@ public class MapScreen extends Screen {
         return WaypointScaling.scale(zoom, config.getWaypointBaseZoom(), config.getWaypointZoomLogBase());
     }
 
+    /** As {@link #waypointScale()}, for snitch icons, which have size numbers of their own. */
+    private float snitchScale() {
+        return WaypointScaling.scale(zoom, config.getSnitchBaseZoom(), config.getSnitchZoomLogBase());
+    }
+
     /** The zoom (blocks per pixel) the map was last viewed at; it persists across openings. */
     public static float currentZoom() {
         return zoom;
@@ -872,7 +878,7 @@ public class MapScreen extends Screen {
         // Snitches only get the hover when no waypoint has it; waypoints are the primary layer.
         hoveredSnitch = null;
         if (hoveredWaypoint == null && snitchLayerVisible()) {
-            double hitboxHalfSize = (SnitchRenderer.HALF + 1) * waypointScale;
+            double hitboxHalfSize = (SnitchRenderer.HALF + 1) * snitchScale();
             double best = Double.MAX_VALUE;
             for (Snitch snitch : snitches.getSnitches()) {
                 double offsetX = (snitch.x() + 0.5 - mouseWorldX) / scale;

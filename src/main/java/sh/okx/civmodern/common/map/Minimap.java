@@ -30,7 +30,7 @@ import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.snitches.Snitch;
-import sh.okx.civmodern.common.map.snitches.SnitchRenderer;
+import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderState;
 import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
@@ -342,20 +342,22 @@ public class Minimap {
             }
         }
 
-        // Own snitches, placed and culled like the snitched players above; no edge markers.
-        if (live && config.isSnitchesEnabled() && snitches != null) {
-            Instant now = Instant.now();
+        // Own snitches, placed and culled like the snitched players above; no edge markers. Drawn
+        // offscreen as one layer, as on the map screen, so the translucent mode fades overlapping
+        // icons together (see SnitchLayerRenderer). The picture is the map area, clipped to it.
+        OverlayMode snitchMode = config.getMinimapSnitchLayerMode();
+        if (live && config.isSnitchesEnabled() && snitches != null && snitchMode.isVisible()) {
+            List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
             for (Snitch snitch : snitches.getSnitches()) {
                 Vector2d at = onMap((snitch.x() + 0.5 - x) / zoom, (snitch.z() + 0.5 - y) / zoom, drawOffset, size, cos, sin);
-                if (outside(at.x, at.y, size, circular)) {
-                    continue;
+                if (!outside(at.x, at.y, size, circular)) {
+                    placements.add(new SnitchLayerRenderState.Placement(snitch, (float) at.x, (float) at.y));
                 }
-                matrices.pushMatrix();
-                matrices.translate((float) at.x, (float) at.y);
-                matrices.scale(iconScale, iconScale);
-                SnitchRenderer.render(graphics, snitch, now);
-                matrices.popMatrix();
             }
+            float opacity = snitchMode == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
+            graphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
+                new Matrix3x2f(matrices), mc.getWindow().getGuiScale(), translateX, translateY, (int) size, (int) size,
+                placements, iconScale, Instant.now(), opacity, pictureScissor));
         }
 
         if (!live || config.isWaypointRenderingEnabled()) {

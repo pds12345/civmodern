@@ -473,11 +473,22 @@ public class MapScreen extends Screen {
         // Own snitches, placed like the snitched players above, but drawn offscreen as one layer
         // so the translucent mode fades overlapping icons together (see SnitchLayerRenderer).
         if (snitchLayerVisible()) {
+            // Only what is on screen: zoomed out, the list holds the whole world's snitches.
+            float margin = (SnitchRenderer.HALF + 1) * waypointScale;
+            int screenWidth = window.getGuiScaledWidth();
+            int screenHeight = window.getGuiScaledHeight();
+            List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
+            for (Snitch snitch : snitches.getSnitches()) {
+                float gx = (float) ((snitch.x() + 0.5 - this.x) / scale);
+                float gy = (float) ((snitch.z() + 0.5 - this.y) / scale);
+                if (gx >= -margin && gy >= -margin && gx <= screenWidth + margin && gy <= screenHeight + margin) {
+                    placements.add(new SnitchLayerRenderState.Placement(snitch, gx, gy));
+                }
+            }
             float opacity = config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
             guiGraphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
-                new Matrix3x2f(matrices), window.getGuiScale(), window.getGuiScaledWidth(), window.getGuiScaledHeight(),
-                this.x, this.y, scale, waypointScale, snitches.getSnitches(), Instant.now(), opacity,
-                guiGraphics.scissorStack.peek()));
+                new Matrix3x2f(matrices), window.getGuiScale(), 0, 0, screenWidth, screenHeight,
+                placements, waypointScale, Instant.now(), opacity, guiGraphics.scissorStack.peek()));
         }
 
 //        RenderSystem.depthFunc(GL_LEQUAL);

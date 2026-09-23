@@ -2,9 +2,7 @@ package sh.okx.civmodern.common.map.snitches;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import org.joml.Matrix3x2f;
 import sh.okx.civmodern.common.rendering.CivModernRenderTypes;
@@ -15,7 +13,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** Draws a snitch centred on the current pose: its block texture, framed by the life-remaining outline. */
+/**
+ * Draws snitches as their block texture framed by the life-remaining outline, and builds their
+ * tooltip. Icons are centred on their placement.
+ */
 public final class SnitchRenderer {
 
     /** Icon size in GUI pixels before the map's icon scaling; a little under a waypoint's 16. */
@@ -25,42 +26,24 @@ public final class SnitchRenderer {
     private SnitchRenderer() {
     }
 
-    public static void render(GuiGraphics guiGraphics, Snitch snitch, Instant now) {
-        // (x, y, u, v, destWidth, destHeight, uWidth, vHeight, texWidth, texHeight, colour): the
-        // 16px block texture scaled down to the icon size.
-        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, snitch.type().texture(), -HALF, -HALF, 0, 0,
-            ICON_SIZE, ICON_SIZE, 16, 16, 16, 16, -1);
-        guiGraphics.renderOutline(-HALF - 1, -HALF - 1, ICON_SIZE + 2, ICON_SIZE + 2, snitch.outlineColour(now));
-    }
-
     /**
-     * Draws every snitch in view into an offscreen picture: the layer {@link SnitchLayerRenderer}
-     * fades as a whole. The same shapes as {@link #render}, emitted as vertices because a picture
-     * is drawn through buffers rather than {@code GuiGraphics}.
+     * Draws the placed snitches into an offscreen picture: the layer {@link SnitchLayerRenderer}
+     * fades as a whole. The icon and life-remaining outline are emitted as vertices because a
+     * picture is drawn through buffers rather than {@code GuiGraphics}.
      *
-     * @param pose      maps GUI pixels to picture pixels
-     * @param originX   world block X at the left edge of the screen
-     * @param originZ   world block Z at the top edge of the screen
-     * @param scale     world blocks per GUI pixel
-     * @param iconScale the map's icon scaling at its current zoom
+     * @param pose      maps the placements' GUI pixels to picture pixels
+     * @param iconScale the caller's icon scaling at its current zoom
      */
-    public static void buildLayer(MultiBufferSource.BufferSource source, Matrix3x2f pose, List<Snitch> snitches, Instant now,
-                                  double originX, double originZ, float scale, float iconScale, int screenWidth, int screenHeight) {
-        // Only what is on screen: zoomed out, the list holds the whole world's snitches.
-        float margin = (HALF + 1) * iconScale;
+    public static void buildLayer(MultiBufferSource.BufferSource source, Matrix3x2f pose,
+                                  List<SnitchLayerRenderState.Placement> placements, Instant now, float iconScale) {
         Matrix3x2f local = new Matrix3x2f();
 
         // Outlines first, flushed before the block faces, so an icon always sits over a
         // neighbour's outline rather than under it; the buffer source flushes in no fixed order.
         VertexConsumer outlines = source.getBuffer(CivModernRenderTypes.PICTURE_QUADS);
-        for (Snitch snitch : snitches) {
-            float gx = (float) ((snitch.x() + 0.5 - originX) / scale);
-            float gy = (float) ((snitch.z() + 0.5 - originZ) / scale);
-            if (gx < -margin || gy < -margin || gx > screenWidth + margin || gy > screenHeight + margin) {
-                continue;
-            }
-            pose.translate(gx, gy, local).scale(iconScale, local);
-            int colour = snitch.outlineColour(now);
+        for (SnitchLayerRenderState.Placement placement : placements) {
+            pose.translate(placement.x(), placement.y(), local).scale(iconScale, local);
+            int colour = placement.snitch().outlineColour(now);
             // The four 1px strips renderOutline draws around the icon.
             quad(outlines, local, -HALF - 1, -HALF - 1, HALF + 1, -HALF, colour);
             quad(outlines, local, -HALF - 1, HALF, HALF + 1, HALF + 1, colour);
@@ -71,16 +54,11 @@ public final class SnitchRenderer {
 
         for (SnitchType type : SnitchType.values()) {
             VertexConsumer faces = source.getBuffer(CivModernRenderTypes.SNITCH_ICON.apply(type.texture()));
-            for (Snitch snitch : snitches) {
-                if (snitch.type() != type) {
+            for (SnitchLayerRenderState.Placement placement : placements) {
+                if (placement.snitch().type() != type) {
                     continue;
                 }
-                float gx = (float) ((snitch.x() + 0.5 - originX) / scale);
-                float gy = (float) ((snitch.z() + 0.5 - originZ) / scale);
-                if (gx < -margin || gy < -margin || gx > screenWidth + margin || gy > screenHeight + margin) {
-                    continue;
-                }
-                pose.translate(gx, gy, local).scale(iconScale, local);
+                pose.translate(placement.x(), placement.y(), local).scale(iconScale, local);
                 faces.addVertexWith2DPose(local, -HALF, -HALF).setUv(0, 0).setColor(-1);
                 faces.addVertexWith2DPose(local, -HALF, HALF).setUv(0, 1).setColor(-1);
                 faces.addVertexWith2DPose(local, HALF, HALF).setUv(1, 1).setColor(-1);

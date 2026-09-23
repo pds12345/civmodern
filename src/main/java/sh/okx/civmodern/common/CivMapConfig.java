@@ -74,6 +74,7 @@ public class CivMapConfig {
     private boolean minimapEdgeWaypoints;
     private boolean snitchesEnabled;
     private OverlayMode snitchLayerMode;
+    private OverlayMode minimapSnitchLayerMode;
     private float snitchTranslucentOpacity;
     private int borderColour;
     private OverlayMode nodeOverlayMode;
@@ -148,6 +149,7 @@ public class CivMapConfig {
         this.minimapEdgeWaypoints = Boolean.parseBoolean(properties.getProperty("minimap_edge_waypoints", "true"));
         this.snitchesEnabled = Boolean.parseBoolean(properties.getProperty("show_snitches", "true"));
         this.snitchLayerMode = OverlayMode.fromString(properties.getProperty("snitch_layer_mode", "on"));
+        this.minimapSnitchLayerMode = OverlayMode.fromString(properties.getProperty("minimap_snitch_layer_mode", "on"));
         this.snitchTranslucentOpacity = Float.parseFloat(properties.getProperty("snitch_translucent_opacity", "0.4"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
@@ -244,6 +246,7 @@ public class CivMapConfig {
             properties.setProperty("minimap_edge_waypoints", Boolean.toString(minimapEdgeWaypoints));
             properties.setProperty("show_snitches", Boolean.toString(snitchesEnabled));
             properties.setProperty("snitch_layer_mode", snitchLayerMode.name().toLowerCase());
+            properties.setProperty("minimap_snitch_layer_mode", minimapSnitchLayerMode.name().toLowerCase());
             properties.setProperty("snitch_translucent_opacity", Float.toString(snitchTranslucentOpacity));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
@@ -654,7 +657,7 @@ public class CivMapConfig {
     /**
      * How the snitch layer is drawn on the map screen, if at all. Applies on top of
      * {@link #isSnitchesEnabled()}: that is the master switch for the map and minimap alike, this
-     * only fades or hides the map's layer. The minimap always draws the layer solid.
+     * only fades or hides the map's layer. The minimap has a mode of its own.
      */
     public OverlayMode getSnitchLayerMode() {
         return snitchLayerMode;
@@ -664,9 +667,18 @@ public class CivMapConfig {
         this.snitchLayerMode = snitchLayerMode;
     }
 
+    /** How the snitch layer is drawn on the minimap. Deliberately independent of the map's mode. */
+    public OverlayMode getMinimapSnitchLayerMode() {
+        return minimapSnitchLayerMode;
+    }
+
+    public void setMinimapSnitchLayerMode(OverlayMode minimapSnitchLayerMode) {
+        this.minimapSnitchLayerMode = minimapSnitchLayerMode;
+    }
+
     /**
-     * Opacity of the snitch layer on the map in its translucent mode. The layer fades as a whole,
-     * so where snitches overlap they do not pile up into an opaque blot.
+     * Opacity of the snitch layer, on the map and minimap alike, in the translucent mode. The
+     * layer fades as a whole, so where snitches overlap they do not pile up into an opaque blot.
      */
     public float getSnitchTranslucentOpacity() {
         return snitchTranslucentOpacity;

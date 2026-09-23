@@ -8,7 +8,7 @@ import org.joml.Matrix3x2f;
 import sh.okx.civmodern.common.rendering.CivModernRenderTypes;
 
 /**
- * Draws the map screen's snitches into an offscreen picture and fades that picture as a whole.
+ * Draws the map's or minimap's snitches into an offscreen picture and fades that picture as a whole.
  *
  * <p>Snitches overlap freely - a player with hundreds has clusters many icons deep - so fading
  * each icon as it is drawn would leave a dense cluster as opaque as ever, and the map beneath it
@@ -33,20 +33,19 @@ public final class SnitchLayerRenderer extends PictureInPictureRenderer<SnitchLa
 
     @Override
     protected void renderToTexture(SnitchLayerRenderState state, PoseStack poseStack) {
-        // The picture is the screen at physical resolution, drawn under our own pose rather
-        // than the one handed in (which is set up for the 3D previews vanilla draws this way):
-        // GUI pixels scaled up to physical ones, then the map's pose.
-        Matrix3x2f picturePose = new Matrix3x2f().scale(state.guiScale()).mul(state.guiPose());
-        SnitchRenderer.buildLayer(this.bufferSource, picturePose, state.snitches(), state.now(),
-            state.originX(), state.originZ(), state.blocksPerPixel(), state.iconScale(), state.screenWidth(), state.screenHeight());
+        // The picture is its GUI rectangle at physical resolution, drawn under our own pose
+        // rather than the one handed in (which is set up for the 3D previews vanilla draws this
+        // way): the caller's pose, moved to the picture's corner, scaled up to physical pixels.
+        Matrix3x2f picturePose = new Matrix3x2f().scale(state.guiScale()).translate(-state.x(), -state.y()).mul(state.guiPose());
+        SnitchRenderer.buildLayer(this.bufferSource, picturePose, state.placements(), state.now(), state.iconScale());
         this.bufferSource.endBatch();
 
         float opacity = Math.min(1f, Math.max(0f, state.opacity()));
         if (opacity < 1f) {
             // Over the finished layer: one quad covering the picture, whose alpha scales every
             // pixel already there (see CivModernPipelines.LAYER_FADE).
-            float width = state.screenWidth() * state.guiScale();
-            float height = state.screenHeight() * state.guiScale();
+            float width = state.width() * state.guiScale();
+            float height = state.height() * state.guiScale();
             int colour = Math.round(opacity * 255f) << 24 | 0xFFFFFF;
             VertexConsumer fade = this.bufferSource.getBuffer(CivModernRenderTypes.LAYER_FADE);
             fade.addVertex(0, 0, 0).setColor(colour);

@@ -3,6 +3,7 @@ package sh.okx.civmodern.common.map;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -32,6 +33,7 @@ import sh.okx.civmodern.common.map.screen.IconSizePreviewScreen;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.snitches.Snitch;
 import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderState;
+import sh.okx.civmodern.common.navigation.BoatEta;
 import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
@@ -97,10 +99,15 @@ public class Minimap {
     }
 
     public void onRender(PostRenderGameOverlayEvent event) {
+        Minecraft mc = Minecraft.getInstance();
         if (!config.isMinimapEnabled()) {
+            // No map to hang it under, so the ETA takes the map's corner on its own.
+            if (!mc.options.hideGui) {
+                Placement placement = placement();
+                drawBoatEta(event.guiGraphics(), mc.font, placement.x() + placement.size() / 2, placement.y(), placement.y());
+            }
             return;
         }
-        Minecraft mc = Minecraft.getInstance();
         Scoreboard scoreboard = mc.level.getScoreboard();
         Objective objective = scoreboard.getDisplayObjective(DisplaySlot.LIST);
         // A size preview screen draws the minimap itself with only its own icon; the HUD copy
@@ -290,8 +297,13 @@ public class Minimap {
             matrices.popMatrix();
         }
 
+        int belowMap = (int) size + 2 * BORDER;
         if (config.isShowMinimapCoords()) {
-            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 2 * BORDER, -1);
+            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), belowMap, -1);
+            belowMap += mc.font.lineHeight + 2;
+        }
+        if (live) {
+            drawBoatEta(graphics, mc.font, (int) (size / 2), belowMap, translateY + belowMap);
         }
 
         // Same formula as the map screen, but against the minimap's own base zoom/log base since
@@ -446,6 +458,27 @@ public class Minimap {
         }
 
         matrices.popMatrix();
+    }
+
+    /**
+     * The auto-boat ETA, centred on {@code centreX} with its first line at {@code y} - under the
+     * coordinates line, or the map when that is off. {@code screenY} is where that {@code y} lands
+     * on screen: if the lines would run off the bottom (a bottom-aligned minimap), they go above
+     * the map instead. Nothing is drawn unless a boat route is being followed on the water.
+     */
+    private void drawBoatEta(GuiGraphics graphics, Font font, int centreX, int y, int screenY) {
+        List<Component> lines = BoatEta.lines(AbstractCivModernMod.getInstance().getNavigation());
+        if (lines.isEmpty()) {
+            return;
+        }
+        int height = lines.size() * (font.lineHeight + 2) - 2;
+        if (screenY + height > Minecraft.getInstance().getWindow().getGuiScaledHeight()) {
+            y = -BORDER - 2 - height;
+        }
+        for (Component line : lines) {
+            graphics.drawCenteredString(font, line, centreX, y, -1);
+            y += font.lineHeight + 2;
+        }
     }
 
     /** World directions of the cardinal labels, in map pixels on a north-up map: north is -z. */

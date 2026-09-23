@@ -33,7 +33,7 @@ import sh.okx.civmodern.common.map.screen.IconSizePreviewScreen;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.snitches.Snitch;
 import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderState;
-import sh.okx.civmodern.common.navigation.BoatEta;
+import sh.okx.civmodern.common.navigation.RouteEta;
 import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
@@ -104,7 +104,7 @@ public class Minimap {
             // No map to hang it under, so the ETA takes the map's corner on its own.
             if (!mc.options.hideGui) {
                 Placement placement = placement();
-                drawBoatEta(event.guiGraphics(), mc.font, placement.x() + placement.size() / 2, placement.y(), placement.y());
+                drawRouteEta(event.guiGraphics(), mc.font, placement.x() + placement.size() / 2, placement.y(), placement.y());
             }
             return;
         }
@@ -303,7 +303,7 @@ public class Minimap {
             belowMap += mc.font.lineHeight + 2;
         }
         if (live) {
-            drawBoatEta(graphics, mc.font, (int) (size / 2), belowMap, translateY + belowMap);
+            drawRouteEta(graphics, mc.font, (int) (size / 2), belowMap, translateY + belowMap);
         }
 
         // Same formula as the map screen, but against the minimap's own base zoom/log base since
@@ -461,13 +461,13 @@ public class Minimap {
     }
 
     /**
-     * The auto-boat ETA, centred on {@code centreX} with its first line at {@code y} - under the
-     * coordinates line, or the map when that is off. {@code screenY} is where that {@code y} lands
-     * on screen: if the lines would run off the bottom (a bottom-aligned minimap), they go above
-     * the map instead. Nothing is drawn unless a boat route is being followed on the water.
+     * The auto-navigation ETA, centred on {@code centreX} with its first line at {@code y} - under
+     * the coordinates line, or the map when that is off. {@code screenY} is where that {@code y}
+     * lands on screen: if the lines would run off the bottom (a bottom-aligned minimap), they go
+     * above the map instead. Nothing is drawn unless a route is being followed on the water.
      */
-    private void drawBoatEta(GuiGraphics graphics, Font font, int centreX, int y, int screenY) {
-        List<Component> lines = BoatEta.lines(AbstractCivModernMod.getInstance().getNavigation());
+    private void drawRouteEta(GuiGraphics graphics, Font font, int centreX, int y, int screenY) {
+        List<Component> lines = RouteEta.lines(AbstractCivModernMod.getInstance().getNavigation());
         if (lines.isEmpty()) {
             return;
         }

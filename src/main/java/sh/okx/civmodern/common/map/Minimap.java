@@ -27,11 +27,11 @@ import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
 import sh.okx.civmodern.common.map.mobs.MinimapMobTypes;
 import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
-import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
+import sh.okx.civmodern.common.map.screen.IconSizePreviewScreen;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.snitches.Snitch;
-import sh.okx.civmodern.common.map.snitches.SnitchRenderer;
+import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderState;
 import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
@@ -97,17 +97,21 @@ public class Minimap {
         Minecraft mc = Minecraft.getInstance();
         Scoreboard scoreboard = mc.level.getScoreboard();
         Objective objective = scoreboard.getDisplayObjective(DisplaySlot.LIST);
-        // The preview screen draws the minimap itself with only its own waypoint; the HUD copy
-        // would otherwise show every real waypoint underneath it.
-        boolean previewing = mc.screen instanceof WaypointSizePreviewScreen;
+        // A size preview screen draws the minimap itself with only its own icon; the HUD copy
+        // would otherwise show every real waypoint and snitch underneath it.
+        boolean previewing = mc.screen instanceof IconSizePreviewScreen;
         if (previewing || mc.options.hideGui || mc.debugEntries.isOverlayVisible() || !(!mc.options.keyPlayerList.isDown() || mc.isLocalServer() && mc.player.connection.getListedOnlinePlayers().size() <= 1 && objective == null)) {
             event.guiGraphics().guiRenderState.submitPicturesInPictureState(new BlitRenderState(event.guiGraphics(), 0, 0, 0, 0, event.guiGraphics().pose(),
                 ((source, stack) -> {})));
             return;
         }
 
-        render(event.guiGraphics(), event.deltaTick(), waypoints.getWaypoints(), true,
-            config.getMinimapIconBaseZoom(), config.getMinimapIconZoomLogBase());
+        // The layer mode only hides; the master switch in the settings covers the map too.
+        List<Snitch> snitchList = config.isSnitchesEnabled() && snitches != null && config.getMinimapSnitchLayerMode().isVisible()
+            ? snitches.getSnitches() : List.of();
+        render(event.guiGraphics(), event.deltaTick(), waypoints.getWaypoints(), snitchList, true,
+            config.getMinimapIconBaseZoom(), config.getMinimapIconZoomLogBase(),
+            config.getMinimapSnitchBaseZoom(), config.getMinimapSnitchZoomLogBase());
     }
 
     /**
@@ -116,8 +120,15 @@ public class Minimap {
      * off so the icon is unobstructed. Used by {@link WaypointSizePreviewScreen}, which also
      * supplies the scaling numbers so it can preview unsaved values.
      */
-    public void renderPreview(GuiGraphics graphics, float delta, Waypoint waypoint, float iconBaseZoom, float iconZoomLogBase) {
-        render(graphics, delta, List.of(waypoint), false, iconBaseZoom, iconZoomLogBase);
+    public void renderWaypointPreview(GuiGraphics graphics, float delta, Waypoint waypoint, float iconBaseZoom, float iconZoomLogBase) {
+        render(graphics, delta, List.of(waypoint), List.of(), false, iconBaseZoom, iconZoomLogBase,
+            config.getMinimapSnitchBaseZoom(), config.getMinimapSnitchZoomLogBase());
+    }
+
+    /** As {@link #renderWaypointPreview}, with only {@code snitch} on the map, drawn solid whatever the layer mode. */
+    public void renderSnitchPreview(GuiGraphics graphics, float delta, Snitch snitch, float snitchBaseZoom, float snitchZoomLogBase) {
+        render(graphics, delta, List.of(), List.of(snitch), false, config.getMinimapIconBaseZoom(), config.getMinimapIconZoomLogBase(),
+            snitchBaseZoom, snitchZoomLogBase);
     }
 
     /** Where the minimap's map area (inside the 2px border) sits on screen, in GUI pixels. */
@@ -139,10 +150,13 @@ public class Minimap {
     }
 
     /**
-     * @param live whether this is the real HUD minimap: honours the waypoint toggle and draws
-     *             the chevron, mobs, snitched players and node territory. False for the preview.
+     * @param snitchList the snitches to draw, already filtered by the caller
+     * @param live       whether this is the real HUD minimap: honours the waypoint toggle and the
+     *                   snitch layer mode, and draws the chevron, mobs, snitched players and node
+     *                   territory. False for the previews.
      */
-    private void render(GuiGraphics graphics, float delta, List<Waypoint> waypointList, boolean live, float iconBaseZoom, float iconZoomLogBase) {
+    private void render(GuiGraphics graphics, float delta, List<Waypoint> waypointList, List<Snitch> snitchList, boolean live,
+                        float iconBaseZoom, float iconZoomLogBase, float snitchBaseZoom, float snitchZoomLogBase) {
         Minecraft mc = Minecraft.getInstance();
         float zoom = config.getMinimapZoom();
 
@@ -213,7 +227,7 @@ public class Minimap {
 
         boolean circular = config.isMinimapCircular();
         // Node territory over the tiles, under the waypoints and chevron — as on the map screen.
-        NodeOverlayMode nodeMode = config.getMinimapNodeOverlayMode();
+        OverlayMode nodeMode = config.getMinimapNodeOverlayMode();
         boolean drawNodes = live && nodeMode.isVisible() && nodes != null
             && AbstractCivModernMod.getInstance().getNodeApi().isAvailable();
 
@@ -231,7 +245,7 @@ public class Minimap {
                 if (batch != null) {
                     renderers.add((source, stack) -> {
                         source.endBatch(); // tiles first: the buffer source flushes in no fixed order
-                        batch.buildVertices(source.getBuffer(CivModernRenderTypes.MINIMAP_NODES));
+                        batch.buildVertices(source.getBuffer(CivModernRenderTypes.PICTURE_QUADS));
                     });
                 }
             }
@@ -343,20 +357,22 @@ public class Minimap {
             }
         }
 
-        // Own snitches, placed and culled like the snitched players above; no edge markers.
-        if (live && config.isSnitchesEnabled() && snitches != null) {
-            Instant now = Instant.now();
-            for (Snitch snitch : snitches.getSnitches()) {
+        // Own snitches, placed and culled like the snitched players above; no edge markers. Drawn
+        // offscreen as one layer, as on the map screen, so the translucent mode fades overlapping
+        // icons together (see SnitchLayerRenderer). The picture is the map area, clipped to it.
+        if (!snitchList.isEmpty()) {
+            float snitchScale = WaypointScaling.scale(zoom, snitchBaseZoom, snitchZoomLogBase);
+            List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
+            for (Snitch snitch : snitchList) {
                 Vector2d at = onMap((snitch.x() + 0.5 - x) / zoom, (snitch.z() + 0.5 - y) / zoom, drawOffset, size, cos, sin);
-                if (outside(at.x, at.y, size, circular)) {
-                    continue;
+                if (!outside(at.x, at.y, size, circular)) {
+                    placements.add(new SnitchLayerRenderState.Placement(snitch, (float) at.x, (float) at.y));
                 }
-                matrices.pushMatrix();
-                matrices.translate((float) at.x, (float) at.y);
-                matrices.scale(iconScale, iconScale);
-                SnitchRenderer.render(graphics, snitch, now);
-                matrices.popMatrix();
             }
+            float opacity = live && config.getMinimapSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
+            graphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
+                new Matrix3x2f(matrices), mc.getWindow().getGuiScale(), translateX, translateY, (int) size, (int) size,
+                placements, snitchScale, Instant.now(), opacity, pictureScissor));
         }
 
         if (!live || config.isWaypointRenderingEnabled()) {

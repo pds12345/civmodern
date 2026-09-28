@@ -9,6 +9,7 @@ import net.minecraft.client.gui.render.state.GuiElementRenderState;
 import net.minecraft.network.chat.Component;
 import org.joml.Matrix3x2f;
 import sh.okx.civmodern.common.CivMapConfig;
+import sh.okx.civmodern.common.map.OverlayMode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +34,7 @@ public final class NodeOverlayRenderer {
 
     /**
      * Fully opaque whatever the fill opacity, since the seams are what define the territory.
-     * Only {@link NodeOverlayMode#TRANSLUCENT} fades it, and that fades the layer as a whole.
+     * Only {@link OverlayMode#TRANSLUCENT} fades it, and that fades the layer as a whole.
      */
     private static final int BORDER_COLOUR = 0xFF080B0E;
 
@@ -153,7 +154,7 @@ public final class NodeOverlayRenderer {
      *                 the viewport is the whole screen — the minimap passes its square so the
      *                 layer is scissored to it
      */
-    public static void render(GuiGraphics guiGraphics, NodeCache cache, CivMapConfig config, NodeOverlayMode mode,
+    public static void render(GuiGraphics guiGraphics, NodeCache cache, CivMapConfig config, OverlayMode mode,
                               double originX, double originZ, int screenWidth, int screenHeight, float scale,
                               ScreenRectangle clip) {
         GuiElementRenderState batch = build(new Matrix3x2f(guiGraphics.pose()),
@@ -169,10 +170,10 @@ public final class NodeOverlayRenderer {
      * The layer as a single GUI element, for callers that draw it somewhere other than the GUI
      * itself: the circular minimap builds its vertices straight into its offscreen picture.
      * {@code null} when there is nothing to draw. Parameters as for
-     * {@link #render(GuiGraphics, NodeCache, CivMapConfig, NodeOverlayMode, double, double, int, int, float, ScreenRectangle)}.
+     * {@link #render(GuiGraphics, NodeCache, CivMapConfig, OverlayMode, double, double, int, int, float, ScreenRectangle)}.
      */
     public static @Nullable GuiElementRenderState build(Matrix3x2f pose, @Nullable ScreenRectangle scissor, @Nullable ScreenRectangle bounds,
-                                                        NodeCache cache, CivMapConfig config, NodeOverlayMode mode,
+                                                        NodeCache cache, CivMapConfig config, OverlayMode mode,
                                                         double originX, double originZ, int screenWidth, int screenHeight, float scale) {
         float chunkPixels = 16f / scale;
         if (chunkPixels < MIN_CHUNK_PIXELS) {
@@ -184,10 +185,10 @@ public final class NodeOverlayRenderer {
         // would leave opaque seams floating over a ghosted map.
         float ink;
         float fillOpacity;
-        if (mode == NodeOverlayMode.TRANSLUCENT) {
+        if (mode == OverlayMode.TRANSLUCENT) {
             ink = Math.min(1f, Math.max(0f, config.getNodeTranslucentOpacity()));
             fillOpacity = ink;
-        } else if (mode == NodeOverlayMode.ON) {
+        } else if (mode == OverlayMode.ON) {
             ink = 1f;
             fillOpacity = Math.min(1f, Math.max(0f, config.getNodeOverlayOpacity()));
         } else {

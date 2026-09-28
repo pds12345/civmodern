@@ -47,6 +47,7 @@ import sh.okx.civmodern.common.map.screen.QuickWaypointScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.parser.ParsedWaypoint;
 import sh.okx.civmodern.common.radar.Radar;
+import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderer;
 import sh.okx.civmodern.common.rendering.BlitRenderer;
 import sh.okx.civmodern.common.rendering.CivModernPipelines;
 
@@ -67,6 +68,7 @@ public abstract class AbstractCivModernMod {
     private final KeyMapping minimapZoomBinding;
     private final KeyMapping newWaypointBinding;
     private final KeyMapping minimapNodesBinding;
+    private final KeyMapping minimapSnitchesBinding;
     private final KeyMapping toggleWaypointsBinding;
 
     private CivMapConfig config;
@@ -147,6 +149,12 @@ public abstract class AbstractCivModernMod {
             GLFW.GLFW_KEY_Y,
             CIVMODERN_CATEGORY
         );
+        this.minimapSnitchesBinding = new KeyMapping(
+            "key.civmodern.minimapsnitches",
+            Type.KEYSYM,
+            GLFW.GLFW_KEY_J,
+            CIVMODERN_CATEGORY
+        );
         this.toggleWaypointsBinding = new KeyMapping(
             "key.civmodern.togglewaypoints",
             Type.KEYSYM,
@@ -164,6 +172,7 @@ public abstract class AbstractCivModernMod {
 
     public final void init() {
         SpecialGuiElementRegistry.register(ctx -> new BlitRenderer(ctx.vertexConsumers()));
+        SpecialGuiElementRegistry.register(ctx -> new SnitchLayerRenderer(ctx.vertexConsumers()));
         CivModernPipelines.register();
 
         registerKeyBinding(this.configBinding);
@@ -175,6 +184,7 @@ public abstract class AbstractCivModernMod {
         registerKeyBinding(this.minimapZoomBinding);
         registerKeyBinding(this.newWaypointBinding);
         registerKeyBinding(this.minimapNodesBinding);
+        registerKeyBinding(this.minimapSnitchesBinding);
         registerKeyBinding(this.toggleWaypointsBinding);
     }
 
@@ -372,6 +382,11 @@ public abstract class AbstractCivModernMod {
             // Cycles off -> solid -> translucent -> off. Saved at once, since unlike the map
             // screen's toggle there is no screen-close moment to piggyback the save on.
             config.setMinimapNodeOverlayMode(config.getMinimapNodeOverlayMode().next());
+            config.save();
+        }
+        while (minimapSnitchesBinding.consumeClick()) {
+            // Same reasoning as minimapNodesBinding above: save immediately.
+            config.setMinimapSnitchLayerMode(config.getMinimapSnitchLayerMode().next());
             config.save();
         }
         while (toggleWaypointsBinding.consumeClick()) {

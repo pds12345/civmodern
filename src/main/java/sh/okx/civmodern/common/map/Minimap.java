@@ -252,10 +252,14 @@ public class Minimap {
         graphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(graphics, 0, 0, translateX + config.getMinimapSize(), translateY + config.getMinimapSize(), matrices,
             pictureScissor, ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
 
+        // Back onto the map area: the pose sat at the border's corner, 2px out, for the border and
+        // the picture. Everything below is placed in map pixels (the tiles and mask were drawn at
+        // absolute screen coordinates), so without this the icons and chevron all sit 2px up and
+        // left of the terrain, and edge markers straddle the outline unevenly.
+        matrices.translate(2, 2);
+
         if (drawNodes && !circular) {
             matrices.pushMatrix();
-            // Back onto the map area: the pose currently sits at the border's corner, 2px out.
-            matrices.translate(2, 2);
             // Same enlarged, rotated viewport as the tiles, turned about the map's centre and
             // scissored to the square.
             matrices.translate(size / 2, size / 2);
@@ -266,7 +270,7 @@ public class Minimap {
         }
 
         if (config.isShowMinimapCoords()) {
-            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 6, -1);
+            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 4, -1);
         }
 
         // Same formula as the map screen, but against the minimap's own base zoom/log base since

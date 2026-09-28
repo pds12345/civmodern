@@ -23,6 +23,8 @@ import sh.okx.civmodern.common.events.LeaveEvent;
 import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
 import sh.okx.civmodern.common.events.RespawnEvent;
 import sh.okx.civmodern.common.events.WorldRenderLastEvent;
+import sh.okx.civmodern.common.map.snitches.SnitchListCapture;
+import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.converters.JourneymapConverter;
 import sh.okx.civmodern.common.map.converters.VoxelMapConverter;
 import sh.okx.civmodern.common.map.data.RegionRenderer;
@@ -49,6 +51,8 @@ public class WorldListener {
     private MapFolder file;
     private Minimap minimap;
     private Waypoints waypoints;
+    private Snitches snitches;
+    private final SnitchListCapture snitchCapture = new SnitchListCapture();
     private PlayerRelations playerRelations;
     private Thread converter = null;
 
@@ -127,6 +131,7 @@ public class WorldListener {
         }
         this.file = new MapFolder(mapDirectory);
         this.waypoints = new Waypoints(this.file.getConnection());
+        this.snitches = new Snitches(this.file.getConnection());
         this.playerWaypoints = new PlayerWaypoints();
         // One directory above the dimension/seed split used for map data: hostility isn't tied
         // to a location, so it should survive a portal or respawn moving the player elsewhere.
@@ -175,7 +180,7 @@ public class WorldListener {
                             Minecraft.getInstance().execute(() -> {
                                 this.cache = new MapCache(this.file);
                                 this.nodes = new NodeCache(this.file);
-                                this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.nodes, this.config, this.provider);
+                                this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.snitches, this.cache, this.nodes, this.config, this.provider);
 
                                 for (ChunkPos chunk : this.loadedChunks) {
                                     LevelChunk levelChunk = level.getChunk(chunk.x, chunk.z);
@@ -197,7 +202,7 @@ public class WorldListener {
         converter = null;
         this.cache = new MapCache(this.file);
         this.nodes = new NodeCache(this.file);
-        this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.cache, this.nodes, this.config, this.provider);
+        this.minimap = new Minimap(this.waypoints, this.playerWaypoints, this.snitches, this.cache, this.nodes, this.config, this.provider);
     }
 
     @Subscribe
@@ -226,6 +231,7 @@ public class WorldListener {
         // left to flush here.
         this.playerWaypoints = null;
         this.waypoints = null;
+        this.snitches = null;
         if (this.playerRelations != null) {
             this.playerRelations.close();
         }
@@ -285,6 +291,9 @@ public class WorldListener {
         if (this.playerWaypoints != null) {
             this.playerWaypoints.tick();
         }
+        if (this.snitches != null) {
+            this.snitchCapture.tick(this.snitches);
+        }
     }
 
     @Subscribe
@@ -314,6 +323,11 @@ public class WorldListener {
     /** {@code null} outside a world. */
     public Minimap getMinimap() {
         return this.minimap;
+    }
+
+    /** {@code null} outside a world. */
+    public Snitches getSnitches() {
+        return this.snitches;
     }
 
     public void setSeed(long seed) {

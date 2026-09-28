@@ -77,6 +77,8 @@ public class MapFolder {
                     statement.execute("ALTER TABLE waypoints ADD COLUMN updated_at INT");
                 } catch (SQLException ignored) {
                 }
+                // The player's own JukeAlert snitches, captured from /jalist. Epoch milliseconds.
+                statement.execute("CREATE TABLE IF NOT EXISTS snitches (x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, name TEXT NOT NULL, group_name TEXT NOT NULL, type TEXT NOT NULL, dormant_at INT NOT NULL, seen_at INT NOT NULL, PRIMARY KEY (x, y, z))");
                 statement.execute("CREATE TABLE IF NOT EXISTS blocks (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS biomes (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS regions (x INT NOT NULL, z INT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (x, z, type))");

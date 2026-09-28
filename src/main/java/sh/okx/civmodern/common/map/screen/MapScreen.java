@@ -39,6 +39,9 @@ import sh.okx.civmodern.common.map.nodes.NodeApiClient;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
+import sh.okx.civmodern.common.map.snitches.Snitch;
+import sh.okx.civmodern.common.map.snitches.SnitchRenderer;
+import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -73,6 +76,7 @@ public class MapScreen extends Screen {
     private final AutoNavigation navigation;
     private final Waypoints waypoints;
     private final PlayerWaypoints playerWaypoints;
+    private final Snitches snitches;
 
     private final CivMapConfig config;
 
@@ -92,6 +96,7 @@ public class MapScreen extends Screen {
     private double y;
 
     private Waypoint hoveredWaypoint;
+    private Snitch hoveredSnitch;
 
     private int mouseBlockX;
     private int mouseBlockY;
@@ -106,7 +111,7 @@ public class MapScreen extends Screen {
 
     private boolean changedConfig = false;
 
-    public MapScreen(AbstractCivModernMod mod, KeyMapping key, CivMapConfig config, MapCache mapCache, NodeCache nodeCache, NodeApiClient nodeApi, AutoNavigation navigation, Waypoints waypoints, PlayerWaypoints playerWaypoints) {
+    public MapScreen(AbstractCivModernMod mod, KeyMapping key, CivMapConfig config, MapCache mapCache, NodeCache nodeCache, NodeApiClient nodeApi, AutoNavigation navigation, Waypoints waypoints, PlayerWaypoints playerWaypoints, Snitches snitches) {
         super(Component.translatable("civmodern.screen.map.title"));
 
         this.mod = mod;
@@ -117,6 +122,7 @@ public class MapScreen extends Screen {
         this.nodeApi = nodeApi;
         this.waypoints = waypoints;
         this.playerWaypoints = playerWaypoints;
+        this.snitches = snitches;
         Window window = Minecraft.getInstance().getWindow();
 
         Entity focus = MapFocus.entity();
@@ -421,6 +427,18 @@ public class MapScreen extends Screen {
             }
         }
 
+        // Own snitches, drawn like the snitched players above: same placement and icon scaling.
+        if (config.isSnitchesEnabled() && snitches != null) {
+            Instant now = Instant.now();
+            for (Snitch snitch : snitches.getSnitches()) {
+                matrices.pushMatrix();
+                matrices.translate((float) ((snitch.x() + 0.5 - this.x) / scale), (float) ((snitch.z() + 0.5 - this.y) / scale));
+                matrices.scale(waypointScale, waypointScale);
+                SnitchRenderer.render(guiGraphics, snitch, now);
+                matrices.popMatrix();
+            }
+        }
+
 //        RenderSystem.depthFunc(GL_LEQUAL);
 
         if (targeting || newWaypointModal.isTargeting()) {
@@ -584,7 +602,10 @@ public class MapScreen extends Screen {
         // Set after the widgets render: the frame's first tooltip wins the slot (a later set is
         // dropped unless the widget is focused), so a hovered toolbar button has claimed it by
         // now and the node tooltip only fills in when nothing else did.
-        if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
+        if (hoveredSnitch != null && hoveredWaypoint == null && !newWaypointModal.isVisible()
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
+            guiGraphics.setComponentTooltipForNextFrame(font, SnitchRenderer.tooltip(hoveredSnitch, Instant.now()), mouseX, mouseY);
+        } else if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
             && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
             List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, config, mouseBlockX >> 4, mouseBlockY >> 4);
             if (!lines.isEmpty()) {
@@ -793,6 +814,22 @@ public class MapScreen extends Screen {
             double hitboxHalfSize = 8 * waypointScale;
             if (Math.abs(offsetX) < hitboxHalfSize && Math.abs(offsetY) < hitboxHalfSize) {
                 hoveredWaypoint = closest;
+            }
+        }
+
+        // Snitches only get the hover when no waypoint has it; waypoints are the primary layer.
+        hoveredSnitch = null;
+        if (hoveredWaypoint == null && config.isSnitchesEnabled() && snitches != null) {
+            double hitboxHalfSize = (SnitchRenderer.HALF + 1) * waypointScale;
+            double best = Double.MAX_VALUE;
+            for (Snitch snitch : snitches.getSnitches()) {
+                double offsetX = (snitch.x() + 0.5 - mouseWorldX) / scale;
+                double offsetY = (snitch.z() + 0.5 - mouseWorldY) / scale;
+                double distance = Math.abs(offsetX) + Math.abs(offsetY);
+                if (Math.abs(offsetX) < hitboxHalfSize && Math.abs(offsetY) < hitboxHalfSize && distance < best) {
+                    best = distance;
+                    hoveredSnitch = snitch;
+                }
             }
         }
 

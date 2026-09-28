@@ -71,6 +71,7 @@ public class CivMapConfig {
     private boolean showMinimapCoords;
     private boolean minimapCircular;
     private boolean minimapRotating;
+    private boolean minimapEdgeWaypoints;
     private int borderColour;
     private NodeOverlayMode nodeOverlayMode;
     private NodeOverlayMode minimapNodeOverlayMode;
@@ -141,6 +142,7 @@ public class CivMapConfig {
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
         this.minimapCircular = Boolean.parseBoolean(properties.getProperty("minimap_circular", "false"));
         this.minimapRotating = Boolean.parseBoolean(properties.getProperty("minimap_rotate", "false"));
+        this.minimapEdgeWaypoints = Boolean.parseBoolean(properties.getProperty("minimap_edge_waypoints", "true"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
         // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
@@ -233,6 +235,7 @@ public class CivMapConfig {
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
             properties.setProperty("minimap_circular", Boolean.toString(minimapCircular));
             properties.setProperty("minimap_rotate", Boolean.toString(minimapRotating));
+            properties.setProperty("minimap_edge_waypoints", Boolean.toString(minimapEdgeWaypoints));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
@@ -619,6 +622,15 @@ public class CivMapConfig {
 
     public void setMinimapRotating(boolean minimapRotating) {
         this.minimapRotating = minimapRotating;
+    }
+
+    /** Whether waypoints beyond the minimap's reach are shown as half-size markers on its outline. */
+    public boolean isMinimapEdgeWaypoints() {
+        return minimapEdgeWaypoints;
+    }
+
+    public void setMinimapEdgeWaypoints(boolean minimapEdgeWaypoints) {
+        this.minimapEdgeWaypoints = minimapEdgeWaypoints;
     }
 
     public void setBorderColour(int borderColour) {

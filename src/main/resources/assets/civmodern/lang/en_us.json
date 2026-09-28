@@ -58,6 +58,7 @@
     "civmodern.screen.map.shape.square": "Square",
     "civmodern.screen.map.shape.circle": "Circle",
     "civmodern.screen.map.rotate": "Rotate Minimap",
+    "civmodern.screen.map.edgewaypoints": "Edge Waypoints",
     "civmodern.screen.minimap": "Minimap",
     "civmodern.screen.mapping": "Rendering",
     "civmodern.screen.radar.background_transparency": "BG Transparency: %s",

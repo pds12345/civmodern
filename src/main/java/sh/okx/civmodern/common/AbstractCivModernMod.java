@@ -444,6 +444,10 @@ public abstract class AbstractCivModernMod {
         return minimapZoomBinding;
     }
 
+    public AutoNavigation getNavigation() {
+        return autoNavigation;
+    }
+
     public NodeApiClient getNodeApi() {
         return nodeApi;
     }

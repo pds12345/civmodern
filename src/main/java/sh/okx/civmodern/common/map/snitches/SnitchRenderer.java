@@ -102,8 +102,8 @@ public final class SnitchRenderer {
     /** e.g. {@code 2026-09-19 20:14}. */
     private static final DateTimeFormatter SEEN_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    /** "213h 6m" above an hour, "6m 40s" below, "40s" below a minute. */
-    static String formatRemaining(Duration remaining) {
+    /** "213h 6m" above an hour, "6m 40s" below, "40s" below a minute. Also used for the boat ETA. */
+    public static String formatRemaining(Duration remaining) {
         long hours = remaining.toHours();
         int minutes = remaining.toMinutesPart();
         int seconds = remaining.toSecondsPart();

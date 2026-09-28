@@ -131,7 +131,7 @@ public class CivMapConfig {
         this.waypointRenderDistance = Integer.parseInt(properties.getProperty("waypoint_render_distance", "2000"));
         // Percentage (0-100) applied to all three nested column shells alike - the nesting itself
         // is what makes the centre read as more opaque, not a per-shell value.
-        this.columnOpacity = Float.parseFloat(properties.getProperty("column_opacity", "10"));
+        this.columnOpacity = Float.parseFloat(properties.getProperty("column_opacity", "5"));
         this.columnsEnabled = Boolean.parseBoolean(properties.getProperty("columns_enabled", "true"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
         // Zoom level (blocks per pixel) treated as "full size" for waypoint icons/labels, and the

@@ -29,8 +29,22 @@ public record BlitRenderState(
         Matrix3x2fStack pose,
         Renderer renderer
 	) {
-		this(graphics, x, y, sizeX, sizeY, getBounds(graphics.scissorStack.peek(), pose, x, y, sizeX, sizeY), graphics.scissorStack.peek(), renderer);
+		this(graphics, x, y, sizeX, sizeY, pose, graphics.scissorStack.peek(), renderer);
 	}
+
+    /** As above, but the composited picture is clipped to {@code scissorArea} (GUI coordinates). */
+    public BlitRenderState(
+        GuiGraphics graphics,
+        int x,
+        int y,
+        int sizeX,
+        int sizeY,
+        Matrix3x2fStack pose,
+        @Nullable ScreenRectangle scissorArea,
+        Renderer renderer
+    ) {
+        this(graphics, x, y, sizeX, sizeY, getBounds(scissorArea, pose, x, y, sizeX, sizeY), scissorArea, renderer);
+    }
 
     @Override
     public int x0() {

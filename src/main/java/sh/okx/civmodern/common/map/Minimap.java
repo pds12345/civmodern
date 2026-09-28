@@ -72,8 +72,14 @@ public class Minimap {
      * the square, otherwise the mask leaves a sliver of map showing at the corners.
      */
     private static final int CIRCLE_SEGMENTS = 128;
-    /** Off-map waypoints are pinned to the outline at this fraction of their normal size. */
-    private static final float EDGE_MARKER_SCALE = 0.5f;
+    /** Width of the border drawn around the map area, in GUI pixels. */
+    private static final int BORDER = 2;
+    /**
+     * Off-map waypoints are pinned to the border as markers exactly as wide as it, whatever the
+     * zoom: a coloured tick in the border rather than a shrunken icon that grows and shrinks with
+     * the on-map icons.
+     */
+    private static final float EDGE_MARKER_SCALE = (float) BORDER / Waypoint.ICON_SIZE;
 
     static {
         RenderSystem.queueFencedTask(blank::init);
@@ -252,13 +258,13 @@ public class Minimap {
             renderers.add(circleMask(size, translateX, translateY));
         }
 
-        matrices.translate(-2, -2);
+        matrices.translate(-BORDER, -BORDER);
         int borderColour = 0xff000000 | provider.getBorderColour();
         if (circular) {
             graphics.guiRenderState.submitGuiElement(new RingRenderState(new Matrix3x2f(matrices), graphics.scissorStack.peek(),
-                2 + size / 2f, 2 + size / 2f, size / 2f, size / 2f + 2, CIRCLE_SEGMENTS, borderColour));
+                BORDER + size / 2f, BORDER + size / 2f, size / 2f, size / 2f + BORDER, CIRCLE_SEGMENTS, borderColour));
         } else {
-            graphics.fill(0, 0, (int) (size + 4), (int) (size + 4), borderColour);
+            graphics.fill(0, 0, (int) (size + 2 * BORDER), (int) (size + 2 * BORDER), borderColour);
         }
         // The composited picture is clipped to the outline, so rotated tiles never show outside it.
         ScreenRectangle mapArea = new ScreenRectangle(translateX, translateY, (int) size, (int) size);
@@ -267,11 +273,11 @@ public class Minimap {
         graphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(graphics, 0, 0, translateX + config.getMinimapSize(), translateY + config.getMinimapSize(), matrices,
             pictureScissor, ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
 
-        // Back onto the map area: the pose sat at the border's corner, 2px out, for the border and
-        // the picture. Everything below is placed in map pixels (the tiles and mask were drawn at
+        // Back onto the map area: the pose sat at the border's corner, BORDER px out, for the
+        // border and the picture. Everything below is placed in map pixels (the tiles and mask were drawn at
         // absolute screen coordinates), so without this the icons and chevron all sit 2px up and
         // left of the terrain, and edge markers straddle the outline unevenly.
-        matrices.translate(2, 2);
+        matrices.translate(BORDER, BORDER);
 
         if (drawNodes && !circular) {
             matrices.pushMatrix();
@@ -285,7 +291,7 @@ public class Minimap {
         }
 
         if (config.isShowMinimapCoords()) {
-            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 4, -1);
+            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 2 * BORDER, -1);
         }
 
         // Same formula as the map screen, but against the minimap's own base zoom/log base since
@@ -396,12 +402,14 @@ public class Minimap {
                         if (!config.isMinimapEdgeWaypoints()) {
                             continue;
                         }
-                        // Off the map: a half-size marker centred on the outline, where the tiles
-                        // meet the border, on the line from the centre towards the waypoint.
-                        scale *= EDGE_MARKER_SCALE;
-                        Vector2d edge = onEdge(tx, ty, size, circular);
-                        tx = edge.x;
-                        ty = edge.y;
+                        // Off the map: a border-width marker centred in the border band, on the
+                        // line from the centre towards the waypoint. The band's centre line is the
+                        // outline of a square (or circle) BORDER larger, offset half that outward.
+                        scale = EDGE_MARKER_SCALE;
+                        float inset = BORDER / 2f;
+                        Vector2d edge = onEdge(tx + inset, ty + inset, size + BORDER, circular);
+                        tx = edge.x - inset;
+                        ty = edge.y - inset;
                     }
                     matrices.pushMatrix();
                     matrices.translate((float) tx, (float) ty);

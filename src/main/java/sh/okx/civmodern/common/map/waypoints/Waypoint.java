@@ -65,8 +65,13 @@ public record Waypoint(String name, int x, int y, int z, String icon, int colour
         render2D(guiGraphics, 0xff);
     }
 
+    /** Native size of a waypoint icon in GUI pixels, before any scaling. */
+    public static final int ICON_SIZE = 16;
+
     public void render2D(GuiGraphics guiGraphics, int transparency) {
-        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, resourceLocation(), -8, -8, 0, 0, 16, 16, 16, 16, transparency << 24 | colour());
+        int half = ICON_SIZE / 2;
+        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, resourceLocation(), -half, -half, 0, 0,
+            ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE, transparency << 24 | colour());
     }
 
     public Identifier resourceLocation() {

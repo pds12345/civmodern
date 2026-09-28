@@ -8,6 +8,7 @@
     "BlockStateChangeMixin",
     "ChatMixin",
     "ClientPacketListenerMixin",
+    "DeathMixin",
     "GuiGraphicsMixin",
     "InventoryMixin",
     "ItemStackMixin",

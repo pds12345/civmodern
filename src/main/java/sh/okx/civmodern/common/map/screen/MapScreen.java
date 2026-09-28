@@ -34,6 +34,7 @@ import sh.okx.civmodern.common.map.MapCache;
 import sh.okx.civmodern.common.map.MapFocus;
 import sh.okx.civmodern.common.map.RegionAtlasTexture;
 import sh.okx.civmodern.common.map.RegionKey;
+import sh.okx.civmodern.common.map.WaypointScaling;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
@@ -325,26 +326,7 @@ public class MapScreen extends Screen {
 
         guiGraphics.fill(0, 0, window.getWidth(), window.getHeight(), 0xff000000);
 
-        float renderY;
-        List<BlitRenderState.Renderer> renderers = new ArrayList<>();
-        for (int screenX = 0; screenX < (window.getWidth() * zoom) + SIZE; screenX += SIZE) {
-            for (int screenY = 0; screenY < (window.getHeight() * zoom) + SIZE; screenY += SIZE) {
-                float realX = (float) this.x + screenX;
-                float realY = (float) this.y + screenY;
-
-                float renderX = realX - floatMod(realX, SIZE);
-                renderY = realY - floatMod(realY, SIZE);
-
-                RegionKey key = new RegionKey(Math.floorDiv((int) renderX, SIZE), Math.floorDiv((int) renderY, SIZE));
-                // todo if loading at low zoom, only render downsampled version to save memory
-                RegionAtlasTexture texture = config.isBiomeOverlayEnabled() ? mapCache.getBiomeTexture(key) : mapCache.getTexture(key);
-                if (texture != null) {
-                    renderers.add(texture.draw(guiGraphics, renderX - (float) this.x, renderY - (float) this.y, scale));
-                }
-            }
-        }
-        guiGraphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(guiGraphics, 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), guiGraphics.pose(),
-            ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
+        renderTiles(guiGraphics, mapCache, config.isBiomeOverlayEnabled(), this.x, this.y, zoom, scale);
 
         // The handshake can land or lapse while the map is open, so keep the button honest.
         if (toggleNodes != null && nodeApi != null && nodeApi.getState() != nodeTooltipState) {
@@ -748,8 +730,40 @@ public class MapScreen extends Screen {
      * Shared by render() (to scale the drawing) and mouseMoved() (to scale the hitbox to match).
      */
     private float waypointScale() {
-        float zoomSteps = (float) (Math.log(zoom / config.getWaypointBaseZoom()) / Math.log(config.getWaypointZoomLogBase()));
-        return 1f / (1f + Math.max(0f, zoomSteps));
+        return WaypointScaling.scale(zoom, config.getWaypointBaseZoom(), config.getWaypointZoomLogBase());
+    }
+
+    /** The zoom (blocks per pixel) the map was last viewed at; it persists across openings. */
+    public static float currentZoom() {
+        return zoom;
+    }
+
+    /**
+     * Draws every region tile covering the window, for a view whose top-left corner is at block
+     * ({@code x}, {@code y}) and where one GUI pixel spans {@code scale} blocks. Shared with the
+     * waypoint size preview screen so the two can't drift apart.
+     */
+    static void renderTiles(GuiGraphics guiGraphics, MapCache mapCache, boolean biomes, double x, double y, float zoom, float scale) {
+        Window window = Minecraft.getInstance().getWindow();
+        List<BlitRenderState.Renderer> renderers = new ArrayList<>();
+        for (int screenX = 0; screenX < (window.getWidth() * zoom) + SIZE; screenX += SIZE) {
+            for (int screenY = 0; screenY < (window.getHeight() * zoom) + SIZE; screenY += SIZE) {
+                float realX = (float) x + screenX;
+                float realY = (float) y + screenY;
+
+                float renderX = realX - floatMod(realX, SIZE);
+                float renderY = realY - floatMod(realY, SIZE);
+
+                RegionKey key = new RegionKey(Math.floorDiv((int) renderX, SIZE), Math.floorDiv((int) renderY, SIZE));
+                // todo if loading at low zoom, only render downsampled version to save memory
+                RegionAtlasTexture texture = biomes ? mapCache.getBiomeTexture(key) : mapCache.getTexture(key);
+                if (texture != null) {
+                    renderers.add(texture.draw(guiGraphics, renderX - (float) x, renderY - (float) y, scale));
+                }
+            }
+        }
+        guiGraphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(guiGraphics, 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), guiGraphics.pose(),
+            ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
     }
 
     @Override
@@ -861,7 +875,7 @@ public class MapScreen extends Screen {
         // 2 = middle
     }
 
-    private float floatMod(float x, float y) {
+    private static float floatMod(float x, float y) {
         // x mod y behaving the same way as Math.floorMod but with floats
         return (x - (float) Math.floor(x / y) * y);
     }

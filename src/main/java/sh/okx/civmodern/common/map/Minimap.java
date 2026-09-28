@@ -25,6 +25,7 @@ import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
+import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -78,54 +79,71 @@ public class Minimap {
         Minecraft mc = Minecraft.getInstance();
         Scoreboard scoreboard = mc.level.getScoreboard();
         Objective objective = scoreboard.getDisplayObjective(DisplaySlot.LIST);
-        if (mc.options.hideGui || mc.debugEntries.isOverlayVisible() || !(!mc.options.keyPlayerList.isDown() || mc.isLocalServer() && mc.player.connection.getListedOnlinePlayers().size() <= 1 && objective == null)) {
+        // The preview screen draws the minimap itself with only its own waypoint; the HUD copy
+        // would otherwise show every real waypoint underneath it.
+        boolean previewing = mc.screen instanceof WaypointSizePreviewScreen;
+        if (previewing || mc.options.hideGui || mc.debugEntries.isOverlayVisible() || !(!mc.options.keyPlayerList.isDown() || mc.isLocalServer() && mc.player.connection.getListedOnlinePlayers().size() <= 1 && objective == null)) {
             event.guiGraphics().guiRenderState.submitPicturesInPictureState(new BlitRenderState(event.guiGraphics(), 0, 0, 0, 0, event.guiGraphics().pose(),
                 ((source, stack) -> {})));
             return;
         }
 
+        render(event.guiGraphics(), event.deltaTick(), waypoints.getWaypoints(), true,
+            config.getMinimapIconBaseZoom(), config.getMinimapIconZoomLogBase());
+    }
+
+    /**
+     * Draws the minimap with only {@code waypoint} on it, at its configured size and position and
+     * regardless of the minimap-enabled toggle. Mobs, snitched players and node territory are left
+     * off so the icon is unobstructed. Used by {@link WaypointSizePreviewScreen}, which also
+     * supplies the scaling numbers so it can preview unsaved values.
+     */
+    public void renderPreview(GuiGraphics graphics, float delta, Waypoint waypoint, float iconBaseZoom, float iconZoomLogBase) {
+        render(graphics, delta, List.of(waypoint), false, iconBaseZoom, iconZoomLogBase);
+    }
+
+    /** Where the minimap's map area (inside the 2px border) sits on screen, in GUI pixels. */
+    public record Placement(int x, int y, int size) {
+    }
+
+    public Placement placement() {
+        int size = config.getMinimapSize();
+        int offsetX = config.getMinimapX() + 2;
+        int offsetY = config.getMinimapY() + 2;
+        int height = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        int width = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+        return switch (config.getMinimapAlignment()) {
+            case TOP_LEFT -> new Placement(offsetX, offsetY, size);
+            case TOP_RIGHT -> new Placement(width - offsetX - size, offsetY, size);
+            case BOTTOM_RIGHT -> new Placement(width - offsetX - size, height - offsetY - size, size);
+            default -> new Placement(offsetX, height - offsetY - size, size);
+        };
+    }
+
+    /**
+     * @param live whether this is the real HUD minimap: honours the waypoint toggle and draws
+     *             the chevron, mobs, snitched players and node territory. False for the preview.
+     */
+    private void render(GuiGraphics graphics, float delta, List<Waypoint> waypointList, boolean live, float iconBaseZoom, float iconZoomLogBase) {
+        Minecraft mc = Minecraft.getInstance();
         float zoom = config.getMinimapZoom();
 
         float size = config.getMinimapSize();
 
-        GuiGraphics graphics = event.guiGraphics();
         Matrix3x2fStack matrices = graphics.pose();
 
         matrices.pushMatrix();
 
-        int offsetX = config.getMinimapX() + 2;
-        int offsetY = config.getMinimapY() + 2;
-
-        int translateX;
-        int translateY;
-
-        int height = Minecraft.getInstance().getWindow().getGuiScaledHeight();
-        int width = Minecraft.getInstance().getWindow().getGuiScaledWidth();
-        switch (config.getMinimapAlignment()) {
-            case TOP_LEFT -> {
-                translateX = offsetX;
-                translateY = offsetY;
-            }
-            case TOP_RIGHT -> {
-                translateX = width - offsetX - config.getMinimapSize();
-                translateY = offsetY;
-            }
-            case BOTTOM_RIGHT -> {
-                translateX = width - offsetX - config.getMinimapSize();
-                translateY = height - offsetY - config.getMinimapSize();
-            }
-            default -> {
-                translateX = offsetX;
-                translateY = height - offsetY - config.getMinimapSize();
-            }
-        }
+        Placement placement = placement();
+        int translateX = placement.x();
+        int translateY = placement.y();
 
         matrices.translate(translateX, translateY);
 
         // The camera entity, not mc.player: while spectating, only the camera moves client-side.
         Entity player = MapFocus.entity();
-        float px = (float) Mth.lerp(event.deltaTick(), player.xo, player.getX());
-        float pz = (float) Mth.lerp(event.deltaTick(), player.zo, player.getZ());
+        float px = (float) Mth.lerp(delta, player.xo, player.getX());
+        float pz = (float) Mth.lerp(delta, player.zo, player.getZ());
         int playerBX = player.getBlockX();
         int playerBY = player.getBlockY();
         int playerBZ = player.getBlockZ();
@@ -165,7 +183,7 @@ public class Minimap {
 
         // Node territory over the tiles, under the waypoints and chevron — as on the map screen.
         NodeOverlayMode nodeMode = config.getMinimapNodeOverlayMode();
-        if (nodeMode.isVisible() && nodes != null
+        if (live && nodeMode.isVisible() && nodes != null
             && AbstractCivModernMod.getInstance().getNodeApi().isAvailable()) {
             matrices.pushMatrix();
             // Back onto the map area: the pose currently sits at the border's corner, 2px out.
@@ -176,15 +194,14 @@ public class Minimap {
         }
 
         if (config.isShowMinimapCoords()) {
-            event.guiGraphics().drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 6, -1);
+            graphics.drawCenteredString(mc.font, "%d, %s, %d".formatted(playerBX, playerBY, playerBZ), (int) (size / 2), (int) size + 6, -1);
         }
 
-        // Same easing-log-scale approach as MapScreen#waypointScale(), but against the minimap's
-        // own base zoom/log base since its zoom (blocks per pixel) ranges over different values.
-        float zoomSteps = (float) (Math.log(zoom / config.getMinimapIconBaseZoom()) / Math.log(config.getMinimapIconZoomLogBase()));
-        float iconScale = 1f / (1f + Math.max(0f, zoomSteps));
+        // Same formula as the map screen, but against the minimap's own base zoom/log base since
+        // its zoom (blocks per pixel) ranges over different values.
+        float iconScale = WaypointScaling.scale(zoom, iconBaseZoom, iconZoomLogBase);
 
-        if (config.isMinimapMobsEnabled()) {
+        if (live && config.isMinimapMobsEnabled()) {
             matrices.pushMatrix();
             for (Entity entity : mc.level.entitiesForRendering()) {
                 if (!(entity instanceof LivingEntity) || entity instanceof Player || !entity.isAlive()) {
@@ -202,8 +219,8 @@ public class Minimap {
                     continue;
                 }
 
-                float ex = (float) Mth.lerp(event.deltaTick(), entity.xo, entity.getX());
-                float ez = (float) Mth.lerp(event.deltaTick(), entity.zo, entity.getZ());
+                float ex = (float) Mth.lerp(delta, entity.xo, entity.getX());
+                float ez = (float) Mth.lerp(delta, entity.zo, entity.getZ());
                 double tx = (ex - x) / zoom;
                 double ty = (ez - y) / zoom;
                 if (tx < 0 || ty < 0 || tx > size || ty > size) {
@@ -224,7 +241,7 @@ public class Minimap {
             matrices.popMatrix();
         }
 
-        if (config.isPlayerWaypointsEnabled()) {
+        if (live && config.isPlayerWaypointsEnabled()) {
             // TODO fix the player rendering above the chevron
             // todo fading
             for (PlayerWaypoint waypoint : this.playerWaypoints.getWaypoints()) {
@@ -247,8 +264,7 @@ public class Minimap {
             }
         }
 
-        if (config.isWaypointRenderingEnabled()) {
-            List<Waypoint> waypointList = waypoints.getWaypoints();
+        if (!live || config.isWaypointRenderingEnabled()) {
             Map<String, List<Waypoint>> waypointByIcon = new HashMap<>();
             for (Waypoint waypoint : waypointList) {
                 if (!waypoint.visible()) {
@@ -277,18 +293,21 @@ public class Minimap {
             matrices.popMatrix();
         }
 
-        matrices.pushMatrix();
-        matrices.translate(size / 2, size / 2);
-        matrices.rotate((float) Math.toRadians(player.getViewYRot(event.deltaTick()) % 360f));
-        matrices.scale(4, 4);
-        int chevronColour = provider.getChevronColour() | 0xFF000000;
-        matrices.translate(0, 0.75f);
-        graphics.guiRenderState.submitGuiElement(new ChevronRenderState(
-            CivModernPipelines.GUI_TRIANGLE_STRIP_BLEND,
-            new Matrix3x2f(graphics.pose()),
-            graphics.scissorStack.peek(),
-            chevronColour));
-        matrices.popMatrix();
+        // The preview's waypoint sits exactly where the chevron would, so leave the chevron out there.
+        if (live) {
+            matrices.pushMatrix();
+            matrices.translate(size / 2, size / 2);
+            matrices.rotate((float) Math.toRadians(player.getViewYRot(delta) % 360f));
+            matrices.scale(4, 4);
+            int chevronColour = provider.getChevronColour() | 0xFF000000;
+            matrices.translate(0, 0.75f);
+            graphics.guiRenderState.submitGuiElement(new ChevronRenderState(
+                CivModernPipelines.GUI_TRIANGLE_STRIP_BLEND,
+                new Matrix3x2f(graphics.pose()),
+                graphics.scissorStack.peek(),
+                chevronColour));
+            matrices.popMatrix();
+        }
 
         matrices.popMatrix();
     }

@@ -9,12 +9,19 @@ public class DoubleOptionUpdateableSliderWidget extends AbstractSliderButton {
     private final DoubleValue param;
     private final double min;
     private final double max;
+    /** Granularity in value units; 0 means continuous. The knob snaps to it too. */
+    private final double step;
 
     public DoubleOptionUpdateableSliderWidget(int x, int y, int width, int height, double min, double max, DoubleValue param) {
+        this(x, y, width, height, min, max, 0, param);
+    }
+
+    public DoubleOptionUpdateableSliderWidget(int x, int y, int width, int height, double min, double max, double step, DoubleValue param) {
         super(x, y, width, height, Component.empty(), (param.get() - min) / (max - min));
         this.param = param;
         this.min = min;
         this.max = max;
+        this.step = step;
         this.updateMessage();
     }
 
@@ -30,6 +37,11 @@ public class DoubleOptionUpdateableSliderWidget extends AbstractSliderButton {
 
     @Override
     protected void applyValue() {
-        param.set(Mth.lerp(this.value, min, max));
+        double result = Mth.lerp(this.value, min, max);
+        if (step > 0) {
+            result = min + Math.round((result - min) / step) * step;
+            this.value = (result - min) / (max - min);
+        }
+        param.set(result);
     }
 }

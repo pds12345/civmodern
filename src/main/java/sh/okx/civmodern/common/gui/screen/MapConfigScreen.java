@@ -21,6 +21,7 @@ import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 import sh.okx.civmodern.common.gui.DoubleValue;
 import sh.okx.civmodern.common.gui.widget.DoubleOptionUpdateableSliderWidget;
+import sh.okx.civmodern.common.gui.widget.HorizontalRule;
 import sh.okx.civmodern.common.gui.widget.HsbColourPicker;
 import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.gui.widget.TextRenderable;
@@ -159,6 +160,17 @@ public class MapConfigScreen extends AbstractConfigScreen {
             Minecraft.getInstance().setScreen(new MinimapMobConfigScreen(config, this));
         }).pos(right, offset).size(150, 20).build());
         offset += 24;
+        // The right-hand slot on this row is deliberately left free for a future button.
+        addBodyWidget(Button.builder(minimapShapeLabel(), button -> {
+            config.setMinimapCircular(!config.isMinimapCircular());
+            button.setMessage(minimapShapeLabel());
+        }).pos(left, offset).size(150, 20).build());
+        offset += 20 + 6;
+        // Divider between the minimap settings above and the waypoint/map settings below.
+        HorizontalRule rule = addRenderableOnly(new HorizontalRule(left, right + 150, offset, 0x80FFFFFF));
+        this.bodyWidgets.add(rule);
+        this.bodyEntries.add(new BodyEntry(rule.y + (int) this.scrollAmount, y -> rule.y = y));
+        offset += 1 + 6;
         Waypoints waypoints = AbstractCivModernMod.getInstance().getWorldListener().getWaypoints();
         Button managerButton = Button.builder(Component.translatable("civmodern.screen.map.waypointmanager"), button -> {
             if (waypoints != null) {
@@ -327,6 +339,11 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         addBodyWidget(hsb);
         return hsb;
+    }
+
+    private Component minimapShapeLabel() {
+        return Component.translatable("civmodern.screen.map.shape",
+            Component.translatable(config.isMinimapCircular() ? "civmodern.screen.map.shape.circle" : "civmodern.screen.map.shape.square"));
     }
 
     private void closePickers() {

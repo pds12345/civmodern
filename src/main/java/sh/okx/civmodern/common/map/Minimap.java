@@ -1,6 +1,7 @@
 package sh.okx.civmodern.common.map;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -16,6 +17,7 @@ import net.minecraft.world.scores.Scoreboard;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.gui.render.state.GuiElementRenderState;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
@@ -33,6 +35,8 @@ import sh.okx.civmodern.common.map.waypoints.Waypoints;
 import sh.okx.civmodern.common.rendering.BlitRenderState;
 import sh.okx.civmodern.common.rendering.ChevronRenderState;
 import sh.okx.civmodern.common.rendering.CivModernPipelines;
+import sh.okx.civmodern.common.rendering.CivModernRenderTypes;
+import sh.okx.civmodern.common.rendering.RingRenderState;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -57,6 +61,11 @@ public class Minimap {
     private static final float MOB_ICON_DISPLAY_SIZE = 10f;
     /** Y-levels above/below the player a mob's icon fades out over; beyond this it is invisible. */
     private static final float MOB_Y_FADE_RANGE = 20f;
+    /**
+     * Polygon sides for the circular minimap. A multiple of 8 so a vertex lands on each corner of
+     * the square, otherwise the mask leaves a sliver of map showing at the corners.
+     */
+    private static final int CIRCLE_SEGMENTS = 128;
 
     static {
         RenderSystem.queueFencedTask(blank::init);
@@ -176,15 +185,43 @@ public class Minimap {
             drawnX += screenX == 0 ? tmp / 2 : SIZE;
         }
 
+        boolean circular = config.isMinimapCircular();
+        // Node territory over the tiles, under the waypoints and chevron — as on the map screen.
+        NodeOverlayMode nodeMode = config.getMinimapNodeOverlayMode();
+        boolean drawNodes = live && nodeMode.isVisible() && nodes != null
+            && AbstractCivModernMod.getInstance().getNodeApi().isAvailable();
+
+        if (circular) {
+            if (drawNodes) {
+                // Into the picture rather than the GUI, so the corner mask clips it too: a GUI
+                // element can only be scissored to a rectangle. The picture is in physical pixels,
+                // hence the extra GUI-scale factor on the pose.
+                int guiScale = mc.getWindow().getGuiScale();
+                Matrix3x2f picturePose = new Matrix3x2f().scale(guiScale).mul(matrices);
+                GuiElementRenderState batch = NodeOverlayRenderer.build(picturePose, null, null,
+                    nodes, config, nodeMode, x, y, (int) size, (int) size, zoom);
+                if (batch != null) {
+                    renderers.add((source, stack) -> {
+                        source.endBatch(); // tiles first: the buffer source flushes in no fixed order
+                        batch.buildVertices(source.getBuffer(CivModernRenderTypes.MINIMAP_NODES));
+                    });
+                }
+            }
+            renderers.add(circleMask(size, translateX, translateY));
+        }
+
         matrices.translate(-2, -2);
-        graphics.fill(0, 0, (int) (size + 4), (int) (size + 4), 0xff000000 | provider.getBorderColour());
+        int borderColour = 0xff000000 | provider.getBorderColour();
+        if (circular) {
+            graphics.guiRenderState.submitGuiElement(new RingRenderState(new Matrix3x2f(matrices), graphics.scissorStack.peek(),
+                2 + size / 2f, 2 + size / 2f, size / 2f, size / 2f + 2, CIRCLE_SEGMENTS, borderColour));
+        } else {
+            graphics.fill(0, 0, (int) (size + 4), (int) (size + 4), borderColour);
+        }
         graphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(graphics, 0, 0, translateX + config.getMinimapSize(), translateY + config.getMinimapSize(), matrices,
             ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
 
-        // Node territory over the tiles, under the waypoints and chevron — as on the map screen.
-        NodeOverlayMode nodeMode = config.getMinimapNodeOverlayMode();
-        if (live && nodeMode.isVisible() && nodes != null
-            && AbstractCivModernMod.getInstance().getNodeApi().isAvailable()) {
+        if (drawNodes && !circular) {
             matrices.pushMatrix();
             // Back onto the map area: the pose currently sits at the border's corner, 2px out.
             matrices.translate(2, 2);
@@ -223,7 +260,7 @@ public class Minimap {
                 float ez = (float) Mth.lerp(delta, entity.zo, entity.getZ());
                 double tx = (ex - x) / zoom;
                 double ty = (ez - y) / zoom;
-                if (tx < 0 || ty < 0 || tx > size || ty > size) {
+                if (outside(tx, ty, size, circular)) {
                     continue;
                 }
 
@@ -250,7 +287,7 @@ public class Minimap {
                 double wz = waypoint.z() + 0.5;
                 double tx = (wx - x) / zoom;
                 double ty = (wz - y) / zoom;
-                if (tx < 0 || ty < 0 || tx > size || ty > size) {
+                if (outside(tx, ty, size, circular)) {
                     continue;
                 }
                 matrices.pushMatrix();
@@ -279,7 +316,7 @@ public class Minimap {
                     double wz = waypoint.z() + 0.5;
                     double tx = (wx - x) / zoom;
                     double ty = (wz - y) / zoom;
-                    if (tx < 0 || ty < 0 || tx > size || ty > size) {
+                    if (outside(tx, ty, size, circular)) {
                         continue;
                     }
                     matrices.pushMatrix();
@@ -315,6 +352,52 @@ public class Minimap {
     private float floatMod(float x, float y) {
         // x mod y behaving the same way as Math.floorMod but with floats
         return (x - (float) Math.floor(x / y) * y);
+    }
+
+    /** Whether an icon centred at ({@code tx}, {@code ty}) in map pixels falls off the minimap. */
+    private static boolean outside(double tx, double ty, float size, boolean circular) {
+        if (!circular) {
+            return tx < 0 || ty < 0 || tx > size || ty > size;
+        }
+        double r = size / 2.0;
+        double dx = tx - r;
+        double dy = ty - r;
+        return dx * dx + dy * dy > r * r;
+    }
+
+    /**
+     * Clears everything outside the inscribed circle of the {@code size} square to transparent:
+     * one quad per segment between the circle and the square's edge along the same rays. Drawn
+     * last, into the picture, with the same transform the tiles use. The quads are opaque white;
+     * the pipeline's blend function is what zeroes the pixels (see
+     * {@link CivModernPipelines#MINIMAP_MASK}).
+     */
+    private static BlitRenderState.Renderer circleMask(float size, int translateX, int translateY) {
+        return (source, stack) -> {
+            // Everything drawn so far has to be on the texture before it is overwritten.
+            source.endBatch();
+            VertexConsumer buffer = source.getBuffer(CivModernRenderTypes.MINIMAP_MASK);
+            stack.pushPose();
+            stack.setIdentity();
+            int guiScale = Minecraft.getInstance().getWindow().getGuiScale();
+            stack.scale(guiScale, guiScale, 1);
+            stack.translate(translateX, translateY, 0);
+            float r = size / 2f;
+            for (int i = 0; i < CIRCLE_SEGMENTS; i++) {
+                double a0 = 2 * Math.PI * i / CIRCLE_SEGMENTS;
+                double a1 = 2 * Math.PI * (i + 1) / CIRCLE_SEGMENTS;
+                float c0 = (float) Math.cos(a0), s0 = (float) Math.sin(a0);
+                float c1 = (float) Math.cos(a1), s1 = (float) Math.sin(a1);
+                // Where the same ray meets the square's edge.
+                float e0 = r / Math.max(Math.abs(c0), Math.abs(s0));
+                float e1 = r / Math.max(Math.abs(c1), Math.abs(s1));
+                buffer.addVertex(stack.last(), r + r * c0, r + r * s0, 0).setColor(0xFFFFFFFF);
+                buffer.addVertex(stack.last(), r + r * c1, r + r * s1, 0).setColor(0xFFFFFFFF);
+                buffer.addVertex(stack.last(), r + e1 * c1, r + e1 * s1, 0).setColor(0xFFFFFFFF);
+                buffer.addVertex(stack.last(), r + e0 * c0, r + e0 * s0, 0).setColor(0xFFFFFFFF);
+            }
+            stack.popPose();
+        };
     }
 
     public void cycleZoom() {

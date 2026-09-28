@@ -32,4 +32,16 @@ public class CivModernRenderTypes {
         "column",
         RenderSetup.builder(CivModernPipelines.COLUMN).createRenderSetup()
     );
+
+    /** The circular minimap's corner mask, drawn inside its offscreen picture. */
+    public static final RenderType MINIMAP_MASK = RenderType.create(
+        "civmodern_minimap_mask",
+        RenderSetup.builder(CivModernPipelines.MINIMAP_MASK).createRenderSetup()
+    );
+
+    /** Node territory drawn inside the circular minimap's picture, so the mask clips it too. */
+    public static final RenderType MINIMAP_NODES = RenderType.create(
+        "civmodern_minimap_nodes",
+        RenderSetup.builder(CivModernPipelines.GUI_QUADS).createRenderSetup()
+    );
 }

@@ -33,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 import sh.okx.civmodern.common.navigation.AutoNavigation;
 import sh.okx.civmodern.common.events.*;
+import sh.okx.civmodern.common.features.ContainerDump;
 import sh.okx.civmodern.common.gui.screen.MainConfigScreen;
 import sh.okx.civmodern.common.macro.AttackMacro;
 import sh.okx.civmodern.common.macro.HoldKeyMacro;
@@ -46,6 +47,7 @@ import sh.okx.civmodern.common.map.screen.QuickWaypointScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.parser.ParsedWaypoint;
 import sh.okx.civmodern.common.radar.Radar;
+import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderer;
 import sh.okx.civmodern.common.rendering.BlitRenderer;
 import sh.okx.civmodern.common.rendering.CivModernPipelines;
 
@@ -66,11 +68,13 @@ public abstract class AbstractCivModernMod {
     private final KeyMapping minimapZoomBinding;
     private final KeyMapping newWaypointBinding;
     private final KeyMapping minimapNodesBinding;
+    private final KeyMapping minimapSnitchesBinding;
     private final KeyMapping toggleWaypointsBinding;
 
     private CivMapConfig config;
     private ColourProvider colourProvider;
     private Radar radar;
+    private final ContainerDump containerDump = new ContainerDump();
 
     private WorldListener worlds;
     private AutoNavigation autoNavigation;
@@ -145,6 +149,12 @@ public abstract class AbstractCivModernMod {
             GLFW.GLFW_KEY_Y,
             CIVMODERN_CATEGORY
         );
+        this.minimapSnitchesBinding = new KeyMapping(
+            "key.civmodern.minimapsnitches",
+            Type.KEYSYM,
+            GLFW.GLFW_KEY_J,
+            CIVMODERN_CATEGORY
+        );
         this.toggleWaypointsBinding = new KeyMapping(
             "key.civmodern.togglewaypoints",
             Type.KEYSYM,
@@ -162,6 +172,7 @@ public abstract class AbstractCivModernMod {
 
     public final void init() {
         SpecialGuiElementRegistry.register(ctx -> new BlitRenderer(ctx.vertexConsumers()));
+        SpecialGuiElementRegistry.register(ctx -> new SnitchLayerRenderer(ctx.vertexConsumers()));
         CivModernPipelines.register();
 
         registerKeyBinding(this.configBinding);
@@ -173,6 +184,7 @@ public abstract class AbstractCivModernMod {
         registerKeyBinding(this.minimapZoomBinding);
         registerKeyBinding(this.newWaypointBinding);
         registerKeyBinding(this.minimapNodesBinding);
+        registerKeyBinding(this.minimapSnitchesBinding);
         registerKeyBinding(this.toggleWaypointsBinding);
     }
 
@@ -188,6 +200,7 @@ public abstract class AbstractCivModernMod {
         this.eventBus.register(this.worlds);
 
         this.eventBus.register(this.radar);
+        this.eventBus.register(this.containerDump);
 
         this.eventBus.register(this.nodeApi);
 
@@ -229,6 +242,44 @@ public abstract class AbstractCivModernMod {
         // last S2C_REGION, so a disagreement with /nodeprint can be pinned on one side or the other.
         registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_nodedump").executes(context -> {
             dumpLastRegion();
+            return 0;
+        }));
+
+        // Own snitches captured from /jalist: how many are known, or forget them all.
+        registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_snitches")
+            .executes(context -> {
+                LocalPlayer player = Minecraft.getInstance().player;
+                if (player == null) {
+                    return 0;
+                }
+                if (worlds.getSnitches() == null) {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.noworld"), false);
+                } else {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.count", worlds.getSnitches().size()), false);
+                }
+                return 0;
+            })
+            .then(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("clear").executes(context -> {
+                LocalPlayer player = Minecraft.getInstance().player;
+                if (player == null) {
+                    return 0;
+                }
+                if (worlds.getSnitches() == null) {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.noworld"), false);
+                } else {
+                    player.displayClientMessage(Component.translatable("civmodern.snitches.cleared", worlds.getSnitches().clear()), false);
+                }
+                return 0;
+            })));
+
+        // Records the next container GUI (every page of it) to civmodern/container-dump.txt, to
+        // learn a server GUI's exact item names and lore before writing a parser for it.
+        registration.dispatcher().register(LiteralArgumentBuilder.<ClientSuggestionProvider>literal("civmodern_containerdump").executes(context -> {
+            containerDump.arm();
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player != null) {
+                player.displayClientMessage(Component.literal("Armed: the next container you open will be recorded, page by page, until you close it."), false);
+            }
             return 0;
         }));
     }
@@ -302,7 +353,7 @@ public abstract class AbstractCivModernMod {
             return;
         }
         openScreen("map", () -> {
-            MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints());
+            MapScreen screen = new MapScreen(this, this.mapBinding, config, worlds.getCache(), worlds.getNodes(), nodeApi, autoNavigation, worlds.getWaypoints(), worlds.getPlayerWaypoints(), worlds.getSnitches());
             setup.accept(screen);
             return screen;
         });
@@ -331,6 +382,11 @@ public abstract class AbstractCivModernMod {
             // Cycles off -> solid -> translucent -> off. Saved at once, since unlike the map
             // screen's toggle there is no screen-close moment to piggyback the save on.
             config.setMinimapNodeOverlayMode(config.getMinimapNodeOverlayMode().next());
+            config.save();
+        }
+        while (minimapSnitchesBinding.consumeClick()) {
+            // Same reasoning as minimapNodesBinding above: save immediately.
+            config.setMinimapSnitchLayerMode(config.getMinimapSnitchLayerMode().next());
             config.save();
         }
         while (toggleWaypointsBinding.consumeClick()) {
@@ -381,6 +437,15 @@ public abstract class AbstractCivModernMod {
 
     public WorldListener getWorldListener() {
         return worlds;
+    }
+
+    /** Exposed so screens can react to the minimap zoom key themselves: bindings don't fire while a screen is open. */
+    public KeyMapping getMinimapZoomBinding() {
+        return minimapZoomBinding;
+    }
+
+    public AutoNavigation getNavigation() {
+        return autoNavigation;
     }
 
     public NodeApiClient getNodeApi() {

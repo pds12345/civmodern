@@ -15,10 +15,14 @@ import net.minecraft.util.Mth;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
+import sh.okx.civmodern.common.map.WorldListener;
 import sh.okx.civmodern.common.map.screen.WaypointManagerScreen;
+import sh.okx.civmodern.common.map.screen.SnitchSizePreviewScreen;
+import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 import sh.okx.civmodern.common.gui.DoubleValue;
 import sh.okx.civmodern.common.gui.widget.DoubleOptionUpdateableSliderWidget;
+import sh.okx.civmodern.common.gui.widget.HorizontalRule;
 import sh.okx.civmodern.common.gui.widget.HsbColourPicker;
 import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.gui.widget.TextRenderable;
@@ -59,6 +63,9 @@ public class MapConfigScreen extends AbstractConfigScreen {
      */
     private record BodyEntry(int naturalY, IntConsumer reposition) {
     }
+
+    private static final int MIN_WAYPOINT_DISTANCE = 100;
+    private static final int MAX_WAYPOINT_DISTANCE = 30000;
 
     private double scrollAmount = 0;
     private int viewportTop;
@@ -157,6 +164,20 @@ public class MapConfigScreen extends AbstractConfigScreen {
             Minecraft.getInstance().setScreen(new MinimapMobConfigScreen(config, this));
         }).pos(right, offset).size(150, 20).build());
         offset += 24;
+        addBodyWidget(Button.builder(minimapShapeLabel(), button -> {
+            config.setMinimapCircular(!config.isMinimapCircular());
+            button.setMessage(minimapShapeLabel());
+        }).pos(left, offset).size(150, 20).build());
+        addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.rotate"), this.config::isMinimapRotating, this.config::setMinimapRotating, null, ToggleButton.DEFAULT_NARRATION));
+        offset += 24;
+        addBodyWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.edgewaypoints"), this.config::isMinimapEdgeWaypoints, this.config::setMinimapEdgeWaypoints, null, ToggleButton.DEFAULT_NARRATION));
+        addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.snitches"), this.config::isSnitchesEnabled, this.config::setSnitchesEnabled, Tooltip.create(Component.translatable("civmodern.screen.map.snitches.tooltip")), ToggleButton.DEFAULT_NARRATION));
+        offset += 20 + 6;
+        // Divider between the minimap settings above and the waypoint/map settings below.
+        HorizontalRule rule = addRenderableOnly(new HorizontalRule(left, right + 150, offset, 0x80FFFFFF));
+        this.bodyWidgets.add(rule);
+        this.bodyEntries.add(new BodyEntry(rule.y + (int) this.scrollAmount, y -> rule.y = y));
+        offset += 1 + 6;
         Waypoints waypoints = AbstractCivModernMod.getInstance().getWorldListener().getWaypoints();
         Button managerButton = Button.builder(Component.translatable("civmodern.screen.map.waypointmanager"), button -> {
             if (waypoints != null) {
@@ -170,21 +191,26 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }
         addBodyWidget(managerButton);
         offset += 24;
-        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 100, 5000, new DoubleValue() {
+        // On a log scale: a linear slider over 100..30000 would cram the useful few hundred to
+        // few thousand blocks into its first pixels. The slider works in log10, so get(), set()
+        // and getText() all convert. Saved values snap to two significant figures, so the
+        // graduations grow with the distance: steps of 10 up to 1000, 100 up to 10000, then 1000.
+        addBodyWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20,
+            Math.log10(MIN_WAYPOINT_DISTANCE), Math.log10(MAX_WAYPOINT_DISTANCE), new DoubleValue() {
             @Override
             public double get() {
-                return config.getWaypointRenderDistance();
+                return Math.log10(Mth.clamp(config.getWaypointRenderDistance(), MIN_WAYPOINT_DISTANCE, MAX_WAYPOINT_DISTANCE));
             }
 
             @Override
             public void set(double value) {
-                config.setWaypointRenderDistance((int) value);
+                config.setWaypointRenderDistance(snapDistance(Math.pow(10, value)));
             }
 
             @Override
             public Component getText(double value) {
                 return Component.translatable("civmodern.screen.map.waypointdistance",
-                    Integer.toString((int) value));
+                    Integer.toString(snapDistance(Math.pow(10, value))));
             }
         }));
         addBodyWidget(new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 2, 32, new DoubleValue() {
@@ -224,19 +250,34 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         addBodyWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH, Component.translatable("civmodern.screen.map.columnsenabled"), config::isColumnsEnabled, config::setColumnsEnabled, null, ToggleButton.DEFAULT_NARRATION));
         offset += 24;
-        int waypointScalingLabelY = offset;
-        offset += 12;
-        addNumberInput("Waypoint base zoom", left, waypointScalingLabelY, offset, 0.001f, 4f,
-            config::getWaypointBaseZoom, config::setWaypointBaseZoom);
-        addNumberInput("Waypoint zoom log base", right, waypointScalingLabelY, offset, 1.01f, 20f,
-            config::getWaypointZoomLogBase, config::setWaypointZoomLogBase);
+        // The map's snitch button cycles solid, translucent and hidden; this is the translucent strength.
+        DoubleOptionUpdateableSliderWidget snitchOpacity = new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20, 0.05, 1.0, new DoubleValue() {
+            @Override
+            public double get() {
+                return config.getSnitchTranslucentOpacity();
+            }
+
+            @Override
+            public void set(double value) {
+                config.setSnitchTranslucentOpacity((float) value);
+            }
+
+            @Override
+            public Component getText(double value) {
+                return Component.translatable("civmodern.screen.map.snitchopacity",
+                    Math.round(value * 100) + "%");
+            }
+        });
+        snitchOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.snitchopacity.tooltip")));
+        addBodyWidget(snitchOpacity);
         offset += 24;
-        int minimapScalingLabelY = offset;
-        offset += 12;
-        addNumberInput("Minimap icon base zoom", left, minimapScalingLabelY, offset, 0.001f, 16f,
-            config::getMinimapIconBaseZoom, config::setMinimapIconBaseZoom);
-        addNumberInput("Minimap icon zoom log base", right, minimapScalingLabelY, offset, 1.01f, 20f,
-            config::getMinimapIconZoomLogBase, config::setMinimapIconZoomLogBase);
+        // The icon-size numbers are edited on their own screens, where the effect is visible.
+        AbstractCivModernMod mod = AbstractCivModernMod.getInstance();
+        WorldListener worldListener = mod.getWorldListener();
+        addPreviewButton(left, offset, "civmodern.screen.map.waypointpreview", () -> new WaypointSizePreviewScreen(this, config,
+            worldListener.getCache(), worldListener.getMinimap(), mod.getMinimapZoomBinding()));
+        addPreviewButton(right, offset, "civmodern.screen.map.snitchpreview", () -> new SnitchSizePreviewScreen(this, config,
+            worldListener.getCache(), worldListener.getMinimap(), mod.getMinimapZoomBinding()));
         offset += 24;
 
         chevronPicker = addColourPicker("Chevron colour", left, offset, CivMapConfig.DEFAULT_CHEVRON_COLOUR, config::getChevronColour, config::setChevronColour,
@@ -264,6 +305,29 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }).pos(centre, doneY).size(150, 20).build()));
     }
 
+    /** Rounds a waypoint distance to two significant figures, within the slider's bounds. */
+    private static int snapDistance(double distance) {
+        double clamped = Mth.clamp(distance, MIN_WAYPOINT_DISTANCE, MAX_WAYPOINT_DISTANCE);
+        double step = Math.pow(10, Math.floor(Math.log10(clamped)) - 1);
+        return (int) Mth.clamp(Math.round(clamped / step) * step, MIN_WAYPOINT_DISTANCE, MAX_WAYPOINT_DISTANCE);
+    }
+
+    /** A button opening a size preview screen, which needs the map and minimap and so a world. */
+    private void addPreviewButton(int x, int y, String key, Supplier<Screen> screen) {
+        WorldListener worldListener = AbstractCivModernMod.getInstance().getWorldListener();
+        boolean inWorld = worldListener.getCache() != null && worldListener.getMinimap() != null;
+        Button button = Button.builder(Component.translatable(key), b -> {
+            if (inWorld) {
+                Minecraft.getInstance().setScreen(screen.get());
+            }
+        }).pos(x, y).size(150, 20).build();
+        button.active = inWorld;
+        if (!inWorld) {
+            button.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
+        }
+        addBodyWidget(button);
+    }
+
     private <T extends AbstractWidget> T addBodyWidget(T widget) {
         T added = addRenderableWidget(widget);
         this.bodyWidgets.add(added);
@@ -283,30 +347,6 @@ public class MapConfigScreen extends AbstractConfigScreen {
         for (BodyEntry entry : this.bodyEntries) {
             entry.reposition().accept(entry.naturalY() - (int) this.scrollAmount);
         }
-    }
-
-    private void addNumberInput(String title, int x, int labelY, int y, float min, float max, Supplier<Float> valueGet, Consumer<Float> valueSet) {
-        addBodyRenderableOnly(new TextRenderable.CentreAligned(
-            this.font,
-            x + 75,
-            labelY,
-            Component.literal(title)
-        ));
-        EditBox widget = new EditBox(font, x, y, 150, 20, Component.empty());
-        widget.setValue(String.valueOf(valueGet.get()));
-        widget.setMaxLength(16);
-        Pattern pattern = Pattern.compile("^[0-9]*\\.?[0-9]*$");
-        widget.setFilter(string -> pattern.matcher(string).matches());
-        widget.setResponder(val -> {
-            try {
-                float parsed = Float.parseFloat(val);
-                if (parsed >= min && parsed <= max) {
-                    valueSet.accept(parsed);
-                }
-            } catch (NumberFormatException ignored) {
-            }
-        });
-        addBodyWidget(widget);
     }
 
     private HsbColourPicker addColourPicker(String title, int x, int offsetY, int defaultColour, Supplier<Integer> colourGet, Consumer<Integer> colourSet, Consumer<Integer> preview) {
@@ -346,6 +386,11 @@ public class MapConfigScreen extends AbstractConfigScreen {
         }));
         addBodyWidget(hsb);
         return hsb;
+    }
+
+    private Component minimapShapeLabel() {
+        return Component.translatable("civmodern.screen.map.shape",
+            Component.translatable(config.isMinimapCircular() ? "civmodern.screen.map.shape.circle" : "civmodern.screen.map.shape.square"));
     }
 
     private void closePickers() {

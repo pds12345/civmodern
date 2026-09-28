@@ -5,9 +5,11 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [],
   "client": [
+    "AbstractBoatAccessor",
     "BlockStateChangeMixin",
     "ChatMixin",
     "ClientPacketListenerMixin",
+    "DeathMixin",
     "GuiGraphicsMixin",
     "InventoryMixin",
     "ItemStackMixin",

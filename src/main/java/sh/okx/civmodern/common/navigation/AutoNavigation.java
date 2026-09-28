@@ -76,7 +76,15 @@ public class AutoNavigation {
             return;
         }
 
-        // TODO when user hits a key then stop macro (maybe add button to resume previous route)
+        // Pressing back (S by default) is the driver taking the wheel: drop the route rather than
+        // fight them for the controls. The macro only ever presses forward and the turn keys, so
+        // the back key's state is always the player's own.
+        if (mc.options.keyDown.isDown()) {
+            reset();
+            return;
+        }
+
+        // TODO maybe add button to resume previous route
         // TODO shadow? when showing preview route
         // TODO shift click - show this on the gui instead of queuing
         Vec2 destination = destinations.peek();

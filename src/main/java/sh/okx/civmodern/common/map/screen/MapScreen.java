@@ -21,6 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec2;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fStack;
@@ -30,12 +31,18 @@ import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.navigation.AutoNavigation;
 import sh.okx.civmodern.common.gui.widget.ImageButton;
 import sh.okx.civmodern.common.map.MapCache;
+import sh.okx.civmodern.common.map.MapFocus;
 import sh.okx.civmodern.common.map.RegionAtlasTexture;
 import sh.okx.civmodern.common.map.RegionKey;
+import sh.okx.civmodern.common.map.WaypointScaling;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
+import sh.okx.civmodern.common.map.OverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeCache;
-import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeOverlayRenderer;
+import sh.okx.civmodern.common.map.snitches.Snitch;
+import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderState;
+import sh.okx.civmodern.common.map.snitches.SnitchRenderer;
+import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoints;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
@@ -70,6 +77,7 @@ public class MapScreen extends Screen {
     private final AutoNavigation navigation;
     private final Waypoints waypoints;
     private final PlayerWaypoints playerWaypoints;
+    private final Snitches snitches;
 
     private final CivMapConfig config;
 
@@ -78,6 +86,7 @@ public class MapScreen extends Screen {
     private ImageButton openWaypointButton;
     private ImageButton toggleNodes;
     private ImageButton toggleBiomes;
+    private ImageButton toggleSnitches;
 
     /** Tracks the API state the node button's tooltip was built for, so it can follow along. */
     private NodeApiClient.State nodeTooltipState;
@@ -89,6 +98,7 @@ public class MapScreen extends Screen {
     private double y;
 
     private Waypoint hoveredWaypoint;
+    private Snitch hoveredSnitch;
 
     private int mouseBlockX;
     private int mouseBlockY;
@@ -103,7 +113,7 @@ public class MapScreen extends Screen {
 
     private boolean changedConfig = false;
 
-    public MapScreen(AbstractCivModernMod mod, KeyMapping key, CivMapConfig config, MapCache mapCache, NodeCache nodeCache, NodeApiClient nodeApi, AutoNavigation navigation, Waypoints waypoints, PlayerWaypoints playerWaypoints) {
+    public MapScreen(AbstractCivModernMod mod, KeyMapping key, CivMapConfig config, MapCache mapCache, NodeCache nodeCache, NodeApiClient nodeApi, AutoNavigation navigation, Waypoints waypoints, PlayerWaypoints playerWaypoints, Snitches snitches) {
         super(Component.translatable("civmodern.screen.map.title"));
 
         this.mod = mod;
@@ -114,10 +124,12 @@ public class MapScreen extends Screen {
         this.nodeApi = nodeApi;
         this.waypoints = waypoints;
         this.playerWaypoints = playerWaypoints;
+        this.snitches = snitches;
         Window window = Minecraft.getInstance().getWindow();
 
-        x = Minecraft.getInstance().player.getX() - (window.getWidth() * zoom) / 2;
-        y = Minecraft.getInstance().player.getZ() - (window.getHeight() * zoom) / 2;
+        Entity focus = MapFocus.entity();
+        x = focus.getX() - (window.getWidth() * zoom) / 2;
+        y = focus.getZ() - (window.getHeight() * zoom) / 2;
         this.navigation = navigation;
     }
 
@@ -229,7 +241,22 @@ public class MapScreen extends Screen {
         updateBiomeOverlayButton(toggleBiomes);
         addRenderableWidget(toggleBiomes);
 
-        ImageButton managerButton = new ImageButton(this.width - 150, 10, 20, 20,
+        toggleSnitches = new ImageButton(this.width - 150, 10, 20, 20, snitchLayerImage(), imbg -> {
+            if (config.isSnitchesEnabled()) {
+                config.setSnitchLayerMode(config.getSnitchLayerMode().next());
+            } else {
+                // Off in the settings: the click means "show them", not "advance a mode nobody
+                // can see". That switch covers the minimap too, and so does turning it back on.
+                config.setSnitchesEnabled(true);
+                config.setSnitchLayerMode(OverlayMode.ON);
+            }
+            changedConfig = true;
+            updateSnitchLayerButton(imbg);
+        });
+        updateSnitchLayerButton(toggleSnitches);
+        addRenderableWidget(toggleSnitches);
+
+        ImageButton managerButton = new ImageButton(this.width - 174, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
             Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
         });
@@ -260,8 +287,34 @@ public class MapScreen extends Screen {
     /** The icon carries the state: full for ON, ghosted for TRANSLUCENT, struck out for OFF. */
     private void updateNodeOverlayButton(ImageButton button) {
         button.setImage(nodeOverlayImage());
-        button.setAlpha(config.getNodeOverlayMode() == NodeOverlayMode.TRANSLUCENT ? 0.5f : 1f);
+        button.setAlpha(config.getNodeOverlayMode() == OverlayMode.TRANSLUCENT ? 0.5f : 1f);
         button.setTooltip(Tooltip.create(nodeOverlayTooltip()));
+    }
+
+    private void updateSnitchLayerButton(ImageButton button) {
+        button.setImage(snitchLayerImage());
+        button.setAlpha(snitchLayerVisible() && config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? 0.5f : 1f);
+        button.setTooltip(Tooltip.create(snitchLayerTooltip()));
+    }
+
+    private Identifier snitchLayerImage() {
+        return Identifier.fromNamespaceAndPath("civmodern", snitchLayerVisible() ? "gui/snitch.png" : "gui/snitchoff.png");
+    }
+
+    private Component snitchLayerTooltip() {
+        MutableComponent tooltip = Component.translatable("civmodern.map.snitches.tooltip");
+        if (!config.isSnitchesEnabled()) {
+            tooltip.append(Component.literal("\n")).append(Component.translatable("civmodern.map.snitches.tooltip.disabled"));
+        }
+        return tooltip;
+    }
+
+    /**
+     * Whether the map draws the snitch layer at all: the settings' master switch (shared with the
+     * minimap) and the map's own mode must both say so.
+     */
+    private boolean snitchLayerVisible() {
+        return snitches != null && config.isSnitchesEnabled() && config.getSnitchLayerMode().isVisible();
     }
 
     private Identifier nodeOverlayImage() {
@@ -322,26 +375,7 @@ public class MapScreen extends Screen {
 
         guiGraphics.fill(0, 0, window.getWidth(), window.getHeight(), 0xff000000);
 
-        float renderY;
-        List<BlitRenderState.Renderer> renderers = new ArrayList<>();
-        for (int screenX = 0; screenX < (window.getWidth() * zoom) + SIZE; screenX += SIZE) {
-            for (int screenY = 0; screenY < (window.getHeight() * zoom) + SIZE; screenY += SIZE) {
-                float realX = (float) this.x + screenX;
-                float realY = (float) this.y + screenY;
-
-                float renderX = realX - floatMod(realX, SIZE);
-                renderY = realY - floatMod(realY, SIZE);
-
-                RegionKey key = new RegionKey(Math.floorDiv((int) renderX, SIZE), Math.floorDiv((int) renderY, SIZE));
-                // todo if loading at low zoom, only render downsampled version to save memory
-                RegionAtlasTexture texture = config.isBiomeOverlayEnabled() ? mapCache.getBiomeTexture(key) : mapCache.getTexture(key);
-                if (texture != null) {
-                    renderers.add(texture.draw(guiGraphics, renderX - (float) this.x, renderY - (float) this.y, scale));
-                }
-            }
-        }
-        guiGraphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(guiGraphics, 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), guiGraphics.pose(),
-            ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
+        renderTiles(guiGraphics, mapCache, config.isBiomeOverlayEnabled(), this.x, this.y, zoom, scale);
 
         // The handshake can land or lapse while the map is open, so keep the button honest.
         if (toggleNodes != null && nodeApi != null && nodeApi.getState() != nodeTooltipState) {
@@ -436,6 +470,28 @@ public class MapScreen extends Screen {
             }
         }
 
+        // Own snitches, placed like the snitched players above, but drawn offscreen as one layer
+        // so the translucent mode fades overlapping icons together (see SnitchLayerRenderer).
+        if (snitchLayerVisible()) {
+            float snitchScale = snitchScale();
+            // Only what is on screen: zoomed out, the list holds the whole world's snitches.
+            float margin = (SnitchRenderer.HALF + 1) * snitchScale;
+            int screenWidth = window.getGuiScaledWidth();
+            int screenHeight = window.getGuiScaledHeight();
+            List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
+            for (Snitch snitch : snitches.getSnitches()) {
+                float gx = (float) ((snitch.x() + 0.5 - this.x) / scale);
+                float gy = (float) ((snitch.z() + 0.5 - this.y) / scale);
+                if (gx >= -margin && gy >= -margin && gx <= screenWidth + margin && gy <= screenHeight + margin) {
+                    placements.add(new SnitchLayerRenderState.Placement(snitch, gx, gy));
+                }
+            }
+            float opacity = config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
+            guiGraphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
+                new Matrix3x2f(matrices), window.getGuiScale(), 0, 0, screenWidth, screenHeight,
+                placements, snitchScale, Instant.now(), opacity, guiGraphics.scissorStack.peek()));
+        }
+
 //        RenderSystem.depthFunc(GL_LEQUAL);
 
         if (targeting || newWaypointModal.isTargeting()) {
@@ -518,14 +574,15 @@ public class MapScreen extends Screen {
             matrices.popMatrix();
         }
 
-        LocalPlayer player = Minecraft.getInstance().player;
-        float prx = (float) (player.getX() - this.x) / scale;
-        float pry = (float) (player.getZ() - this.y) / scale;
+        // Chevron marks the camera entity (the spectate target while spectating), not mc.player.
+        Entity focus = MapFocus.entity();
+        float prx = (float) (focus.getX() - this.x) / scale;
+        float pry = (float) (focus.getZ() - this.y) / scale;
         matrices.pushMatrix();
         int chevron = 0xFF000000 | mod.getColourProvider().getChevronColour();
         matrices.translate(prx, pry);
         matrices.scale(4, 4);
-        matrices.rotate((float) Math.toRadians(player.getViewYRot(delta) % 360f));
+        matrices.rotate((float) Math.toRadians(focus.getViewYRot(delta) % 360f));
         guiGraphics.guiRenderState.submitGuiElement(new ChevronRenderState(
             CivModernPipelines.GUI_TRIANGLE_STRIP_BLEND,
             new Matrix3x2f(guiGraphics.pose()),
@@ -536,6 +593,7 @@ public class MapScreen extends Screen {
 
         Queue<Vec2> dests = navigation.getDestinations();
         if (boating || !dests.isEmpty()) {
+            LocalPlayer player = Minecraft.getInstance().player;
             guiGraphics.guiRenderState.nextStratum();
             List<Vec2> points = new ArrayList<>();
             float px;
@@ -597,7 +655,10 @@ public class MapScreen extends Screen {
         // Set after the widgets render: the frame's first tooltip wins the slot (a later set is
         // dropped unless the widget is focused), so a hovered toolbar button has claimed it by
         // now and the node tooltip only fills in when nothing else did.
-        if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
+        if (hoveredSnitch != null && hoveredWaypoint == null && !newWaypointModal.isVisible()
+            && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
+            guiGraphics.setComponentTooltipForNextFrame(font, SnitchRenderer.tooltip(hoveredSnitch, Instant.now()), mouseX, mouseY);
+        } else if (nodeOverlayActive() && hoveredWaypoint == null && !newWaypointModal.isVisible()
             && !editWaypointModal.isVisible() && !positionContextMenu.isVisible() && !highlightContextMenu.isVisible()) {
             List<Component> lines = NodeOverlayRenderer.tooltip(nodeCache, config, mouseBlockX >> 4, mouseBlockY >> 4);
             if (!lines.isEmpty()) {
@@ -743,8 +804,45 @@ public class MapScreen extends Screen {
      * Shared by render() (to scale the drawing) and mouseMoved() (to scale the hitbox to match).
      */
     private float waypointScale() {
-        float zoomSteps = (float) (Math.log(zoom / config.getWaypointBaseZoom()) / Math.log(config.getWaypointZoomLogBase()));
-        return 1f / (1f + Math.max(0f, zoomSteps));
+        return WaypointScaling.scale(zoom, config.getWaypointBaseZoom(), config.getWaypointZoomLogBase());
+    }
+
+    /** As {@link #waypointScale()}, for snitch icons, which have size numbers of their own. */
+    private float snitchScale() {
+        return WaypointScaling.scale(zoom, config.getSnitchBaseZoom(), config.getSnitchZoomLogBase());
+    }
+
+    /** The zoom (blocks per pixel) the map was last viewed at; it persists across openings. */
+    public static float currentZoom() {
+        return zoom;
+    }
+
+    /**
+     * Draws every region tile covering the window, for a view whose top-left corner is at block
+     * ({@code x}, {@code y}) and where one GUI pixel spans {@code scale} blocks. Shared with the
+     * waypoint size preview screen so the two can't drift apart.
+     */
+    static void renderTiles(GuiGraphics guiGraphics, MapCache mapCache, boolean biomes, double x, double y, float zoom, float scale) {
+        Window window = Minecraft.getInstance().getWindow();
+        List<BlitRenderState.Renderer> renderers = new ArrayList<>();
+        for (int screenX = 0; screenX < (window.getWidth() * zoom) + SIZE; screenX += SIZE) {
+            for (int screenY = 0; screenY < (window.getHeight() * zoom) + SIZE; screenY += SIZE) {
+                float realX = (float) x + screenX;
+                float realY = (float) y + screenY;
+
+                float renderX = realX - floatMod(realX, SIZE);
+                float renderY = realY - floatMod(realY, SIZE);
+
+                RegionKey key = new RegionKey(Math.floorDiv((int) renderX, SIZE), Math.floorDiv((int) renderY, SIZE));
+                // todo if loading at low zoom, only render downsampled version to save memory
+                RegionAtlasTexture texture = biomes ? mapCache.getBiomeTexture(key) : mapCache.getTexture(key);
+                if (texture != null) {
+                    renderers.add(texture.draw(guiGraphics, renderX - (float) x, renderY - (float) y, scale));
+                }
+            }
+        }
+        guiGraphics.guiRenderState.submitPicturesInPictureState(new BlitRenderState(guiGraphics, 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), guiGraphics.pose(),
+            ((source, stack) -> renderers.forEach(r -> r.render(source, stack)))));
     }
 
     @Override
@@ -774,6 +872,22 @@ public class MapScreen extends Screen {
             double hitboxHalfSize = 8 * waypointScale;
             if (Math.abs(offsetX) < hitboxHalfSize && Math.abs(offsetY) < hitboxHalfSize) {
                 hoveredWaypoint = closest;
+            }
+        }
+
+        // Snitches only get the hover when no waypoint has it; waypoints are the primary layer.
+        hoveredSnitch = null;
+        if (hoveredWaypoint == null && snitchLayerVisible()) {
+            double hitboxHalfSize = (SnitchRenderer.HALF + 1) * snitchScale();
+            double best = Double.MAX_VALUE;
+            for (Snitch snitch : snitches.getSnitches()) {
+                double offsetX = (snitch.x() + 0.5 - mouseWorldX) / scale;
+                double offsetY = (snitch.z() + 0.5 - mouseWorldY) / scale;
+                double distance = Math.abs(offsetX) + Math.abs(offsetY);
+                if (Math.abs(offsetX) < hitboxHalfSize && Math.abs(offsetY) < hitboxHalfSize && distance < best) {
+                    best = distance;
+                    hoveredSnitch = snitch;
+                }
             }
         }
 
@@ -856,7 +970,7 @@ public class MapScreen extends Screen {
         // 2 = middle
     }
 
-    private float floatMod(float x, float y) {
+    private static float floatMod(float x, float y) {
         // x mod y behaving the same way as Math.floorMod but with floats
         return (x - (float) Math.floor(x / y) * y);
     }
@@ -894,6 +1008,17 @@ public class MapScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        // Tab only ever moves focus inside an open modal, never across the toolbar buttons, and
+        // it reaches the modal even if a click on the map took the screen's focus away from it.
+        if (event.key() == GLFW.GLFW_KEY_TAB) {
+            Modal<?> modal = newWaypointModal.isVisible() ? newWaypointModal
+                : editWaypointModal.isVisible() ? editWaypointModal : null;
+            if (modal != null) {
+                setFocused(modal);
+                modal.keyPressed(event);
+            }
+            return true;
+        }
         // Esc must close just the open modal, not the map behind it - vanilla Screen would
         // otherwise treat it as unhandled and close the whole screen.
         if (event.key() == GLFW.GLFW_KEY_ESCAPE) {

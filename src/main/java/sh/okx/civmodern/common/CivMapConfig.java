@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 import sh.okx.civmodern.common.gui.Alignment;
 import sh.okx.civmodern.common.map.mobs.MinimapMobTypes;
 import sh.okx.civmodern.common.map.mobs.MobThreatCategory;
-import sh.okx.civmodern.common.map.nodes.NodeOverlayMode;
+import sh.okx.civmodern.common.map.OverlayMode;
 import sh.okx.civmodern.common.map.nodes.NodeProtocol;
 
 public class CivMapConfig {
@@ -65,13 +65,24 @@ public class CivMapConfig {
     private float waypointZoomLogBase;
     private float minimapIconBaseZoom;
     private float minimapIconZoomLogBase;
+    private float snitchBaseZoom;
+    private float snitchZoomLogBase;
+    private float minimapSnitchBaseZoom;
+    private float minimapSnitchZoomLogBase;
     private float maxZoom;
     private boolean cratesAreCompacted;
     private boolean radarLogarithm;
     private boolean showMinimapCoords;
+    private boolean minimapCircular;
+    private boolean minimapRotating;
+    private boolean minimapEdgeWaypoints;
+    private boolean snitchesEnabled;
+    private OverlayMode snitchLayerMode;
+    private OverlayMode minimapSnitchLayerMode;
+    private float snitchTranslucentOpacity;
     private int borderColour;
-    private NodeOverlayMode nodeOverlayMode;
-    private NodeOverlayMode minimapNodeOverlayMode;
+    private OverlayMode nodeOverlayMode;
+    private OverlayMode minimapNodeOverlayMode;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private float nodeTranslucentOpacity;
@@ -120,7 +131,7 @@ public class CivMapConfig {
         this.waypointRenderDistance = Integer.parseInt(properties.getProperty("waypoint_render_distance", "2000"));
         // Percentage (0-100) applied to all three nested column shells alike - the nesting itself
         // is what makes the centre read as more opaque, not a per-shell value.
-        this.columnOpacity = Float.parseFloat(properties.getProperty("column_opacity", "10"));
+        this.columnOpacity = Float.parseFloat(properties.getProperty("column_opacity", "5"));
         this.columnsEnabled = Boolean.parseBoolean(properties.getProperty("columns_enabled", "true"));
         this.minimapZoom = Float.parseFloat(properties.getProperty("minimap_zoom", "4"));
         // Zoom level (blocks per pixel) treated as "full size" for waypoint icons/labels, and the
@@ -132,11 +143,24 @@ public class CivMapConfig {
         // screen's, so it gets its own base zoom and log base.
         this.minimapIconBaseZoom = Float.parseFloat(properties.getProperty("minimap_icon_base_zoom", "0.5"));
         this.minimapIconZoomLogBase = Float.parseFloat(properties.getProperty("minimap_icon_zoom_log_base", "3"));
+        // Snitch icons scale by the same formula but with numbers of their own, defaulting to the
+        // waypoints' defaults so they shrink in step until somebody tunes them apart.
+        this.snitchBaseZoom = Float.parseFloat(properties.getProperty("snitch_base_zoom", "0.03125"));
+        this.snitchZoomLogBase = Float.parseFloat(properties.getProperty("snitch_zoom_log_base", "3"));
+        this.minimapSnitchBaseZoom = Float.parseFloat(properties.getProperty("minimap_snitch_base_zoom", "0.5"));
+        this.minimapSnitchZoomLogBase = Float.parseFloat(properties.getProperty("minimap_snitch_zoom_log_base", "3"));
         // Furthest-out zoom level (blocks per pixel) the map screen allows scrolling to.
         this.maxZoom = Float.parseFloat(properties.getProperty("max_zoom", "32"));
         this.cratesAreCompacted = Boolean.parseBoolean(properties.getProperty("crates_are_compacted", "true"));
         this.radarLogarithm = Boolean.parseBoolean(properties.getProperty("radar_logarithm", "false"));
         this.showMinimapCoords = Boolean.parseBoolean(properties.getProperty("show_minimap_coords", "true"));
+        this.minimapCircular = Boolean.parseBoolean(properties.getProperty("minimap_circular", "false"));
+        this.minimapRotating = Boolean.parseBoolean(properties.getProperty("minimap_rotate", "false"));
+        this.minimapEdgeWaypoints = Boolean.parseBoolean(properties.getProperty("minimap_edge_waypoints", "true"));
+        this.snitchesEnabled = Boolean.parseBoolean(properties.getProperty("show_snitches", "true"));
+        this.snitchLayerMode = OverlayMode.fromString(properties.getProperty("snitch_layer_mode", "on"));
+        this.minimapSnitchLayerMode = OverlayMode.fromString(properties.getProperty("minimap_snitch_layer_mode", "on"));
+        this.snitchTranslucentOpacity = Float.parseFloat(properties.getProperty("snitch_translucent_opacity", "0.4"));
         this.borderColour = Integer.parseInt(properties.getProperty("border_colour", Integer.toString(DEFAULT_BORDER_COLOUR)));
         // node_overlay_mode supersedes the boolean node_overlay_enabled; configs written before
         // the three-state toggle carry only the boolean, so fall back to it when the mode is absent.
@@ -144,10 +168,10 @@ public class CivMapConfig {
         if (overlayMode == null) {
             overlayMode = Boolean.parseBoolean(properties.getProperty("node_overlay_enabled", "true")) ? "on" : "off";
         }
-        this.nodeOverlayMode = NodeOverlayMode.fromString(overlayMode);
+        this.nodeOverlayMode = OverlayMode.fromString(overlayMode);
         // Off unless asked for: the minimap is glanced at in fights, so territory colour joins it
         // only when the player opts in (the toggle keybind, default Y).
-        this.minimapNodeOverlayMode = NodeOverlayMode.fromString(
+        this.minimapNodeOverlayMode = OverlayMode.fromString(
             properties.getProperty("minimap_node_overlay_mode", "off"));
         this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
@@ -223,10 +247,21 @@ public class CivMapConfig {
             properties.setProperty("waypoint_zoom_log_base", Float.toString(waypointZoomLogBase));
             properties.setProperty("minimap_icon_base_zoom", Float.toString(minimapIconBaseZoom));
             properties.setProperty("minimap_icon_zoom_log_base", Float.toString(minimapIconZoomLogBase));
+            properties.setProperty("snitch_base_zoom", Float.toString(snitchBaseZoom));
+            properties.setProperty("snitch_zoom_log_base", Float.toString(snitchZoomLogBase));
+            properties.setProperty("minimap_snitch_base_zoom", Float.toString(minimapSnitchBaseZoom));
+            properties.setProperty("minimap_snitch_zoom_log_base", Float.toString(minimapSnitchZoomLogBase));
             properties.setProperty("max_zoom", Float.toString(maxZoom));
             properties.setProperty("crates_are_compacted", Boolean.toString(cratesAreCompacted));
             properties.setProperty("radar_logarithm", Boolean.toString(radarLogarithm));
             properties.setProperty("show_minimap_coords", Boolean.toString(showMinimapCoords));
+            properties.setProperty("minimap_circular", Boolean.toString(minimapCircular));
+            properties.setProperty("minimap_rotate", Boolean.toString(minimapRotating));
+            properties.setProperty("minimap_edge_waypoints", Boolean.toString(minimapEdgeWaypoints));
+            properties.setProperty("show_snitches", Boolean.toString(snitchesEnabled));
+            properties.setProperty("snitch_layer_mode", snitchLayerMode.name().toLowerCase());
+            properties.setProperty("minimap_snitch_layer_mode", minimapSnitchLayerMode.name().toLowerCase());
+            properties.setProperty("snitch_translucent_opacity", Float.toString(snitchTranslucentOpacity));
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
@@ -566,6 +601,42 @@ public class CivMapConfig {
         this.minimapIconZoomLogBase = minimapIconZoomLogBase;
     }
 
+    /** Map zoom (blocks per pixel) up to which snitch icons are drawn at full size. */
+    public float getSnitchBaseZoom() {
+        return snitchBaseZoom;
+    }
+
+    public void setSnitchBaseZoom(float snitchBaseZoom) {
+        this.snitchBaseZoom = snitchBaseZoom;
+    }
+
+    /** How quickly snitch icons shrink on the map past the base zoom; see {@code WaypointScaling}. */
+    public float getSnitchZoomLogBase() {
+        return snitchZoomLogBase;
+    }
+
+    public void setSnitchZoomLogBase(float snitchZoomLogBase) {
+        this.snitchZoomLogBase = snitchZoomLogBase;
+    }
+
+    /** Minimap zoom (blocks per pixel) up to which snitch icons are drawn at full size. */
+    public float getMinimapSnitchBaseZoom() {
+        return minimapSnitchBaseZoom;
+    }
+
+    public void setMinimapSnitchBaseZoom(float minimapSnitchBaseZoom) {
+        this.minimapSnitchBaseZoom = minimapSnitchBaseZoom;
+    }
+
+    /** How quickly snitch icons shrink on the minimap past the base zoom. */
+    public float getMinimapSnitchZoomLogBase() {
+        return minimapSnitchZoomLogBase;
+    }
+
+    public void setMinimapSnitchZoomLogBase(float minimapSnitchZoomLogBase) {
+        this.minimapSnitchZoomLogBase = minimapSnitchZoomLogBase;
+    }
+
     public float getMaxZoom() {
         return maxZoom;
     }
@@ -598,6 +669,75 @@ public class CivMapConfig {
         this.showMinimapCoords = showMinimapCoords;
     }
 
+    public boolean isMinimapCircular() {
+        return minimapCircular;
+    }
+
+    public void setMinimapCircular(boolean minimapCircular) {
+        this.minimapCircular = minimapCircular;
+    }
+
+    /** Whether the minimap turns with the player (facing direction up) rather than staying north-up. */
+    public boolean isMinimapRotating() {
+        return minimapRotating;
+    }
+
+    public void setMinimapRotating(boolean minimapRotating) {
+        this.minimapRotating = minimapRotating;
+    }
+
+    /** Whether waypoints beyond the minimap's reach are shown as half-size markers on its outline. */
+    public boolean isMinimapEdgeWaypoints() {
+        return minimapEdgeWaypoints;
+    }
+
+    public void setMinimapEdgeWaypoints(boolean minimapEdgeWaypoints) {
+        this.minimapEdgeWaypoints = minimapEdgeWaypoints;
+    }
+
+    /** Whether the player's own snitches (from /jalist) are drawn on the map and minimap. */
+    public boolean isSnitchesEnabled() {
+        return snitchesEnabled;
+    }
+
+    public void setSnitchesEnabled(boolean snitchesEnabled) {
+        this.snitchesEnabled = snitchesEnabled;
+    }
+
+    /**
+     * How the snitch layer is drawn on the map screen, if at all. Applies on top of
+     * {@link #isSnitchesEnabled()}: that is the master switch for the map and minimap alike, this
+     * only fades or hides the map's layer. The minimap has a mode of its own.
+     */
+    public OverlayMode getSnitchLayerMode() {
+        return snitchLayerMode;
+    }
+
+    public void setSnitchLayerMode(OverlayMode snitchLayerMode) {
+        this.snitchLayerMode = snitchLayerMode;
+    }
+
+    /** How the snitch layer is drawn on the minimap. Deliberately independent of the map's mode. */
+    public OverlayMode getMinimapSnitchLayerMode() {
+        return minimapSnitchLayerMode;
+    }
+
+    public void setMinimapSnitchLayerMode(OverlayMode minimapSnitchLayerMode) {
+        this.minimapSnitchLayerMode = minimapSnitchLayerMode;
+    }
+
+    /**
+     * Opacity of the snitch layer, on the map and minimap alike, in the translucent mode. The
+     * layer fades as a whole, so where snitches overlap they do not pile up into an opaque blot.
+     */
+    public float getSnitchTranslucentOpacity() {
+        return snitchTranslucentOpacity;
+    }
+
+    public void setSnitchTranslucentOpacity(float snitchTranslucentOpacity) {
+        this.snitchTranslucentOpacity = snitchTranslucentOpacity;
+    }
+
     public void setBorderColour(int borderColour) {
         this.borderColour = borderColour;
     }
@@ -607,11 +747,11 @@ public class CivMapConfig {
     }
 
     /** How the overlay is drawn on the map, if at all. Independent of whether the server is queried. */
-    public NodeOverlayMode getNodeOverlayMode() {
+    public OverlayMode getNodeOverlayMode() {
         return nodeOverlayMode;
     }
 
-    public void setNodeOverlayMode(NodeOverlayMode nodeOverlayMode) {
+    public void setNodeOverlayMode(OverlayMode nodeOverlayMode) {
         this.nodeOverlayMode = nodeOverlayMode;
         // The two overlays colour the same map tiles, so showing one always hides the other - both
         // toggles live here rather than in the screen so this holds regardless of entry point.
@@ -621,11 +761,11 @@ public class CivMapConfig {
     }
 
     /** How the overlay is drawn on the minimap. Deliberately independent of the map's mode. */
-    public NodeOverlayMode getMinimapNodeOverlayMode() {
+    public OverlayMode getMinimapNodeOverlayMode() {
         return minimapNodeOverlayMode;
     }
 
-    public void setMinimapNodeOverlayMode(NodeOverlayMode minimapNodeOverlayMode) {
+    public void setMinimapNodeOverlayMode(OverlayMode minimapNodeOverlayMode) {
         this.minimapNodeOverlayMode = minimapNodeOverlayMode;
     }
 
@@ -704,7 +844,7 @@ public class CivMapConfig {
     public void setBiomeOverlayEnabled(boolean biomeOverlayEnabled) {
         this.biomeOverlayEnabled = biomeOverlayEnabled;
         if (biomeOverlayEnabled && nodeOverlayMode.isVisible()) {
-            this.nodeOverlayMode = NodeOverlayMode.OFF;
+            this.nodeOverlayMode = OverlayMode.OFF;
         }
     }
 

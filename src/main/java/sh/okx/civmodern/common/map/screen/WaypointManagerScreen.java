@@ -331,6 +331,14 @@ public class WaypointManagerScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        // As on the map screen: Tab is the modal's, and never cycles this screen's own buttons.
+        if (event.key() == GLFW.GLFW_KEY_TAB) {
+            if (editModal.isVisible()) {
+                setFocused(editModal);
+                editModal.keyPressed(event);
+            }
+            return true;
+        }
         if (event.key() == GLFW.GLFW_KEY_ESCAPE && editModal.isVisible()) {
             editModal.setVisible(false);
             editModal.setWaypoint(null);

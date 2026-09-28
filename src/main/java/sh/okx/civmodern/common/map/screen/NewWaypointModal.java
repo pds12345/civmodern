@@ -208,6 +208,7 @@ public class NewWaypointModal extends Modal<FlowLayout> {
 
         this.layout.inflateAndMount();
         colourBox.moveCursorToStart(false);
+        submitOnEnter(this::done, nameBox, xBox, yBox, zBox);
         focusNameBox();
     }
 

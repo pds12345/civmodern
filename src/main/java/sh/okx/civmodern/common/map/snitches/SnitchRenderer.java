@@ -7,6 +7,8 @@ import net.minecraft.network.chat.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /** Draws a snitch centred on the current pose: its block texture, framed by the life-remaining outline. */
@@ -34,13 +36,25 @@ public final class SnitchRenderer {
         Component life = snitch.isDormant(now)
             ? Component.translatable("civmodern.snitches.dormant").withStyle(ChatFormatting.RED)
             : Component.translatable("civmodern.snitches.timeleft", formatRemaining(snitch.remaining(now))).withStyle(ChatFormatting.AQUA);
+        // When this row was last recorded from /jalist: local time to the minute, plus how long ago.
+        // Every snitch on a page is recorded together, so this is effectively the page's refresh time.
+        String seen = SEEN_FORMAT.format(snitch.seenAt().atZone(ZoneId.systemDefault()));
+        // Never negative, so a clock set back between capture and now cannot print "-3m ago".
+        Duration sinceSeen = now.isBefore(snitch.seenAt()) ? Duration.ZERO : Duration.between(snitch.seenAt(), now);
+        Component updated = Component.translatable("civmodern.snitches.updated", seen, formatRemaining(sinceSeen))
+            .withStyle(ChatFormatting.DARK_GRAY);
         return List.of(
             name,
             Component.translatable("civmodern.snitches.type." + snitch.type().name().toLowerCase()).withStyle(ChatFormatting.GRAY),
+            Component.translatable("civmodern.snitches.coords", snitch.x(), snitch.y(), snitch.z()).withStyle(ChatFormatting.GRAY),
             Component.translatable("civmodern.snitches.group", snitch.group()).withStyle(ChatFormatting.YELLOW),
-            life
+            life,
+            updated
         );
     }
+
+    /** e.g. {@code 2026-09-19 20:14}. */
+    private static final DateTimeFormatter SEEN_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     /** "213h 6m" above an hour, "6m 40s" below, "40s" below a minute. */
     static String formatRemaining(Duration remaining) {

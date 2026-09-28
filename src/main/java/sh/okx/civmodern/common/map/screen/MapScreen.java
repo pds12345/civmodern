@@ -913,6 +913,17 @@ public class MapScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        // Tab only ever moves focus inside an open modal, never across the toolbar buttons, and
+        // it reaches the modal even if a click on the map took the screen's focus away from it.
+        if (event.key() == GLFW.GLFW_KEY_TAB) {
+            Modal<?> modal = newWaypointModal.isVisible() ? newWaypointModal
+                : editWaypointModal.isVisible() ? editWaypointModal : null;
+            if (modal != null) {
+                setFocused(modal);
+                modal.keyPressed(event);
+            }
+            return true;
+        }
         // Esc must close just the open modal, not the map behind it - vanilla Screen would
         // otherwise treat it as unhandled and close the whole screen.
         if (event.key() == GLFW.GLFW_KEY_ESCAPE) {

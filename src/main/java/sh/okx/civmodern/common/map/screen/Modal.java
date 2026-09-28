@@ -2,6 +2,7 @@ package sh.okx.civmodern.common.map.screen;
 
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.ParentUIComponent;
+import io.wispforest.owo.ui.core.UIComponent;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -10,6 +11,7 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import org.lwjgl.glfw.GLFW;
 
 public abstract class Modal<T extends ParentUIComponent> implements Renderable, GuiEventListener, NarratableEntry {
     protected final OwoUIAdapter<T> layout;
@@ -89,7 +91,28 @@ public abstract class Modal<T extends ParentUIComponent> implements Renderable, 
         if (!visible) {
             return false;
         }
-        return this.layout.keyPressed(event);
+        boolean handled = this.layout.keyPressed(event);
+        // owo moves its own focus on Tab but reports the key as unhandled. Left at that, vanilla's
+        // Screen would run its tab navigation as well and quietly hand focus to the host screen's
+        // widgets, after which the modal stops receiving keys at all. Tab belongs to the modal.
+        return handled || event.key() == GLFW.GLFW_KEY_TAB;
+    }
+
+    public static boolean isEnter(KeyEvent event) {
+        return event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER;
+    }
+
+    /** Enter in any of {@code fields} acts like the Done button, as in a web form. */
+    protected static void submitOnEnter(Runnable done, UIComponent... fields) {
+        for (UIComponent field : fields) {
+            field.keyPress().subscribe(event -> {
+                if (isEnter(event)) {
+                    done.run();
+                    return true;
+                }
+                return false;
+            });
+        }
     }
 
     @Override

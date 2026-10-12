@@ -35,7 +35,7 @@ public class MapCache {
 
     private final Set<RegionKey> gettingAtlas = new HashSet<>();
 
-    // maybe downsample texture atlases? rendering a full civmc map is >1GB of VRAM
+    // maybe downsample texture atlases? rendering a full civnodes map is >1GB of VRAM
     private final Map<RegionKey, RegionAtlasTexture> textureCache = new ConcurrentHashMap<>();
     // Populated lazily, one atlas at a time, the first time the biome overlay is drawn over it -
     // most players never toggle it on, and this is a second full-size atlas texture per entry.

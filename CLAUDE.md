@@ -1,6 +1,6 @@
 # CivModern
 
-Client-side-only Fabric mod for Minecraft 1.21.11, used on Civ-style servers (CivMC etc.).
+Client-side-only Fabric mod for Minecraft 1.21.11, used on Civ-style servers (CivNodes etc.).
 Features: combat radar, a self-built world map + minimap (Xaero-like, stored locally),
 waypoints, a node/territory overlay fed by a custom server plugin channel, PvP/utility
 macros (ice-road, auto-attack, hold-key), and compacted-item stack-count colouring.

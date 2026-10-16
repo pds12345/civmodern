@@ -196,7 +196,7 @@ public class MapConfigScreen extends AbstractConfigScreen {
         Snitches snitches = worlds.getSnitches();
         Button snitchManagerButton = Button.builder(Component.translatable("civmodern.screen.map.snitchmanager"), button -> {
             if (snitches != null) {
-                Minecraft.getInstance().setScreen(new SnitchManagerScreen(this, snitches, worlds.getJalistPager()));
+                Minecraft.getInstance().setScreen(new SnitchManagerScreen(this, snitches, worlds.getWaypoints(), worlds.getJalistPager()));
             }
         }).pos(right, offset).size(150, 20).build();
         snitchManagerButton.active = snitches != null;

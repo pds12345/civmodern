@@ -41,6 +41,8 @@ import java.util.List;
  *   being culled. "b" keeps the first 50 of "a" and adds 10 new ones on group "VariantB", over 2
  *   pages, so a refresh after switching shows the old 50 disappearing. "c" is "a" grown to 450
  *   snitches over 10 pages, slow enough to leave part-way by hand.</li>
+ *   <li>{@code /civmodern_fakejalist long} adds five snitches with names too long for the snitch
+ *   manager's name column, on group "LongNames", to whichever data set is current.</li>
  *   <li>{@code /civmodern_fakejalist content|slots} picks how a page change reaches the client:
  *   one whole-window packet (the default, as JukeAlert is believed to do) or slot by slot.</li>
  * </ul>
@@ -74,7 +76,7 @@ public final class FakeJalist {
         dispatcher.register(Commands.literal("civmodern_fakejalist")
             .executes(context -> {
                 context.getSource().sendSuccess(() -> Component.literal(
-                    "Usage: /civmodern_fakejalist a|b|c (data set, restarts countdowns) or content|slots (how pages arrive). Now: "
+                    "Usage: /civmodern_fakejalist a|b|c (data set, restarts countdowns), long (adds long-named snitches) or content|slots (how pages arrive). Now: "
                         + variant + ", " + (slotUpdates ? "slots" : "content")), false);
                 return 1;
             })
@@ -82,13 +84,36 @@ public final class FakeJalist {
             .then(Commands.literal("b").executes(context -> select(context.getSource(), "b")))
             .then(Commands.literal("c").executes(context -> select(context.getSource(), "c")))
             .then(Commands.literal("content").executes(context -> mode(context.getSource(), false)))
-            .then(Commands.literal("slots").executes(context -> mode(context.getSource(), true))));
+            .then(Commands.literal("slots").executes(context -> mode(context.getSource(), true)))
+            .then(Commands.literal("long").executes(context -> addLongNames(context.getSource()))));
     }
 
     private static int select(CommandSourceStack source, String chosen) {
         variant = chosen;
         generate(BlockPos.containing(source.getPosition()));
         source.sendSuccess(() -> Component.literal("Fake /jalist: variant " + chosen + ", " + entries.size() + " snitches, countdowns restarted"), false);
+        return 1;
+    }
+
+    /** Adds a few snitches whose names are too long for the snitch manager's name column. */
+    private static int addLongNames(CommandSourceStack source) {
+        BlockPos centre = BlockPos.containing(source.getPosition());
+        if (entries == null) {
+            generate(centre);
+        }
+        String[] names = {
+            "Northern-Border-Watchtower-Main-Gate-Entrance",
+            "Fortuna-Farm-Initial-Surface-Expansion-East-Wing",
+            "Very Long Snitch Name With Spaces In It For Testing",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "Short",
+        };
+        Instant now = Instant.now();
+        entries = new ArrayList<>(entries);
+        for (int i = 0; i < names.length; i++) {
+            entries.add(active(centre.offset(i * 16, 0, 48), names[i], "LongNames", i % 2 == 0, now.plus(Duration.ofHours(200 + i))));
+        }
+        source.sendSuccess(() -> Component.literal("Fake /jalist: added " + names.length + " long-named snitches, " + entries.size() + " in all"), false);
         return 1;
     }
 

@@ -121,7 +121,7 @@ public class Minimap {
 
         // The layer mode only hides; the master switch in the settings covers the map too.
         List<Snitch> snitchList = config.isSnitchesEnabled() && snitches != null && config.getMinimapSnitchLayerMode().isVisible()
-            ? snitches.getSnitches() : List.of();
+            ? snitches.getVisibleSnitches() : List.of();
         render(event.guiGraphics(), event.deltaTick(), waypoints.getWaypoints(), snitchList, true,
             config.getMinimapIconBaseZoom(), config.getMinimapIconZoomLogBase(),
             config.getMinimapSnitchBaseZoom(), config.getMinimapSnitchZoomLogBase());

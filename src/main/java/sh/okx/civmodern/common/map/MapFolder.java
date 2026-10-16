@@ -84,6 +84,9 @@ public class MapFolder {
                     statement.execute("ALTER TABLE snitches ADD COLUMN cull_at INT");
                 } catch (SQLException ignored) {
                 }
+                // Snitches the player hid in the snitch manager. Apart from the snitches table, which
+                // every complete /jalist pass rewrites, so a hidden snitch stays hidden across them.
+                statement.execute("CREATE TABLE IF NOT EXISTS snitch_hidden (x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, PRIMARY KEY (x, y, z))");
                 statement.execute("CREATE TABLE IF NOT EXISTS blocks (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS biomes (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS regions (x INT NOT NULL, z INT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (x, z, type))");

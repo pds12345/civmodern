@@ -193,7 +193,7 @@ public class MapScreen extends Screen {
         } else {
             toggleWaypointImage = Identifier.fromNamespaceAndPath("civmodern", "gui/waypointoff.png");
         }
-        ImageButton toggleWaypoints = new ImageButton(this.width - 78, 10, 20, 20, toggleWaypointImage, imbg -> {
+        ImageButton toggleWaypoints = new ImageButton(this.width - 54, 10, 20, 20, toggleWaypointImage, imbg -> {
             config.setWaypointRenderingEnabled(!config.isWaypointRenderingEnabled());
             changedConfig = true;
             if (config.isWaypointRenderingEnabled()) {
@@ -211,7 +211,7 @@ public class MapScreen extends Screen {
         } else {
             togglePlayersImage = Identifier.fromNamespaceAndPath("civmodern", "gui/toggleplayers.png");
         }
-        ImageButton togglePlayers = new ImageButton(this.width - 54, 10, 20, 20, togglePlayersImage, imbg -> {
+        ImageButton togglePlayers = new ImageButton(this.width - 30, 34, 20, 20, togglePlayersImage, imbg -> {
             // TODO use world config
             config.setPlayerWaypointsEnabled(!config.isPlayerWaypointsEnabled());
             changedConfig = true;
@@ -224,7 +224,7 @@ public class MapScreen extends Screen {
         togglePlayers.setTooltip(Tooltip.create(Component.translatable("civmodern.map.players.tooltip")));
         addRenderableWidget(togglePlayers);
 
-        toggleNodes = new ImageButton(this.width - 102, 10, 20, 20, nodeOverlayImage(), imbg -> {
+        toggleNodes = new ImageButton(this.width - 30, 58, 20, 20, nodeOverlayImage(), imbg -> {
             config.setNodeOverlayMode(config.getNodeOverlayMode().next());
             changedConfig = true;
             updateNodeOverlayButton(imbg);
@@ -232,7 +232,7 @@ public class MapScreen extends Screen {
         updateNodeOverlayButton(toggleNodes);
         addRenderableWidget(toggleNodes);
 
-        toggleBiomes = new ImageButton(this.width - 126, 10, 20, 20, biomeOverlayImage(), imbg -> {
+        toggleBiomes = new ImageButton(this.width - 54, 58, 20, 20, biomeOverlayImage(), imbg -> {
             config.setBiomeOverlayEnabled(!config.isBiomeOverlayEnabled());
             changedConfig = true;
             updateBiomeOverlayButton(imbg);
@@ -241,7 +241,7 @@ public class MapScreen extends Screen {
         updateBiomeOverlayButton(toggleBiomes);
         addRenderableWidget(toggleBiomes);
 
-        toggleSnitches = new ImageButton(this.width - 150, 10, 20, 20, snitchLayerImage(), imbg -> {
+        toggleSnitches = new ImageButton(this.width - 54, 34, 20, 20, snitchLayerImage(), imbg -> {
             if (config.isSnitchesEnabled()) {
                 config.setSnitchLayerMode(config.getSnitchLayerMode().next());
             } else {
@@ -256,12 +256,21 @@ public class MapScreen extends Screen {
         updateSnitchLayerButton(toggleSnitches);
         addRenderableWidget(toggleSnitches);
 
-        ImageButton managerButton = new ImageButton(this.width - 174, 10, 20, 20,
+        ImageButton managerButton = new ImageButton(this.width - 78, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
             Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
         });
         managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.waypointmanager.tooltip")));
         addRenderableWidget(managerButton);
+
+        // Same icon as the waypoint manager beside it.
+        ImageButton snitchManagerButton = new ImageButton(this.width - 78, 34, 20, 20,
+            Identifier.fromNamespaceAndPath("civmodern", "gui/manager.png"), imbg -> {
+            Minecraft.getInstance().setScreen(new SnitchManagerScreen(this, snitches, waypoints,
+                AbstractCivModernMod.getInstance().getWorldListener().getJalistPager()));
+        });
+        snitchManagerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.map.snitchmanager.tooltip")));
+        addRenderableWidget(snitchManagerButton);
 
         ImageButton settingsButton = new ImageButton(this.width - 30, 10, 20, 20,
             Identifier.fromNamespaceAndPath("civmodern", "gui/settings.png"), imbg -> {
@@ -392,6 +401,34 @@ public class MapScreen extends Screen {
         matrices.pushMatrix();
         matrices.translate(0, -1);
 
+        // Own snitches, drawn offscreen as one layer so the translucent mode fades overlapping
+        // icons together (see SnitchLayerRenderer). Submitted before the waypoints so their
+        // icons and name labels draw over it.
+        if (snitchLayerVisible()) {
+            float snitchScale = snitchScale();
+            // Only what is on screen: zoomed out, the list holds the whole world's snitches.
+            float margin = (SnitchRenderer.HALF + 1) * snitchScale;
+            int screenWidth = window.getGuiScaledWidth();
+            int screenHeight = window.getGuiScaledHeight();
+            List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
+            Instant now = Instant.now();
+            for (Snitch snitch : snitches.getVisibleSnitches()) {
+                // Culled snitches stay listed in the snitch manager but are most likely gone.
+                if (snitch.isCulled(now)) {
+                    continue;
+                }
+                float gx = (float) ((snitch.x() + 0.5 - this.x) / scale);
+                float gy = (float) ((snitch.z() + 0.5 - this.y) / scale);
+                if (gx >= -margin && gy >= -margin && gx <= screenWidth + margin && gy <= screenHeight + margin) {
+                    placements.add(new SnitchLayerRenderState.Placement(snitch, gx, gy));
+                }
+            }
+            float opacity = config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
+            guiGraphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
+                new Matrix3x2f(matrices), window.getGuiScale(), 0, 0, screenWidth, screenHeight,
+                placements, snitchScale, now, opacity, guiGraphics.scissorStack.peek()));
+        }
+
         List<Waypoint> waypointList = waypoints.getWaypoints();
         if (config.isWaypointRenderingEnabled()) {
             Map<String, List<Waypoint>> waypointByIcon = new HashMap<>();
@@ -468,33 +505,6 @@ public class MapScreen extends Screen {
                 }
                 matrices.popMatrix();
             }
-        }
-
-        // Own snitches, placed like the snitched players above, but drawn offscreen as one layer
-        // so the translucent mode fades overlapping icons together (see SnitchLayerRenderer).
-        if (snitchLayerVisible()) {
-            float snitchScale = snitchScale();
-            // Only what is on screen: zoomed out, the list holds the whole world's snitches.
-            float margin = (SnitchRenderer.HALF + 1) * snitchScale;
-            int screenWidth = window.getGuiScaledWidth();
-            int screenHeight = window.getGuiScaledHeight();
-            List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
-            Instant now = Instant.now();
-            for (Snitch snitch : snitches.getSnitches()) {
-                // Culled snitches stay listed in the snitch manager but are most likely gone.
-                if (snitch.isCulled(now)) {
-                    continue;
-                }
-                float gx = (float) ((snitch.x() + 0.5 - this.x) / scale);
-                float gy = (float) ((snitch.z() + 0.5 - this.y) / scale);
-                if (gx >= -margin && gy >= -margin && gx <= screenWidth + margin && gy <= screenHeight + margin) {
-                    placements.add(new SnitchLayerRenderState.Placement(snitch, gx, gy));
-                }
-            }
-            float opacity = config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
-            guiGraphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
-                new Matrix3x2f(matrices), window.getGuiScale(), 0, 0, screenWidth, screenHeight,
-                placements, snitchScale, now, opacity, guiGraphics.scissorStack.peek()));
         }
 
 //        RenderSystem.depthFunc(GL_LEQUAL);
@@ -886,7 +896,7 @@ public class MapScreen extends Screen {
             double hitboxHalfSize = (SnitchRenderer.HALF + 1) * snitchScale();
             double best = Double.MAX_VALUE;
             Instant now = Instant.now();
-            for (Snitch snitch : snitches.getSnitches()) {
+            for (Snitch snitch : snitches.getVisibleSnitches()) {
                 if (snitch.isCulled(now)) {
                     continue;
                 }

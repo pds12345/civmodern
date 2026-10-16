@@ -42,9 +42,9 @@ public enum SnitchType {
         };
     }
 
-    // Unconfirmed for CivNodes; JukeAlert's own defaults are 4 weeks for jukeboxes, 2 for note blocks.
-    private static final Duration JUKEBOX_DORMANCY = Duration.ofDays(14);
-    private static final Duration NOTE_BLOCK_DORMANCY = Duration.ofDays(14);
+    // As confirmed by the CivNodes admins: the same length as each type's active lifespan.
+    private static final Duration JUKEBOX_DORMANCY = Duration.ofDays(42);
+    private static final Duration NOTE_BLOCK_DORMANCY = Duration.ofDays(28);
 
     public Identifier texture() {
         return texture;

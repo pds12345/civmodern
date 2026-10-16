@@ -4,6 +4,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -13,6 +14,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
+import sh.okx.civmodern.common.gui.SearchFilter;
 import sh.okx.civmodern.common.map.waypoints.Waypoint;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
 
@@ -23,7 +25,7 @@ import java.util.List;
 /**
  * Every waypoint in one scrollable table — name, position, and the coloured diamond the map
  * draws — sorted alphabetically or by distance from the player, toggled with the buttons above
- * the table. Clicking a row opens the same edit modal the map screen uses, and the table is
+ * the table, and filtered by the search box above those (a case-insensitive name match). Clicking a row opens the same edit modal the map screen uses, and the table is
  * re-read from {@link Waypoints} every frame, so edits and deletes show at once.
  */
 public class WaypointManagerScreen extends Screen {
@@ -49,9 +51,10 @@ public class WaypointManagerScreen extends Screen {
     private static final int HIDDEN_NAME_COLOUR = 0x88FFFFFF;
     private static final int HIDDEN_NUMBER_COLOUR = 0x88CCCCCC;
 
-    private static final int SORT_BUTTON_Y = 24;
+    private static final int SEARCH_Y = 24;
+    private static final int SORT_BUTTON_Y = 48;
     private static final int SORT_BUTTON_HEIGHT = 20;
-    private static final int HEADER_ROW_Y = 56;
+    private static final int HEADER_ROW_Y = 80;
 
     private enum SortMode {
         ALPHA, DISTANCE
@@ -68,6 +71,7 @@ public class WaypointManagerScreen extends Screen {
     private boolean distanceAscending = true;
     private Button distanceButton;
     private Button alphaButton;
+    private String search = "";
 
     public WaypointManagerScreen(Screen parent, Waypoints waypoints) {
         super(Component.translatable("civmodern.screen.waypoints.title"));
@@ -84,6 +88,16 @@ public class WaypointManagerScreen extends Screen {
 
         int buttonWidth = (tableWidth() - 4) / 2;
         int left = tableLeft();
+        EditBox searchBox = new EditBox(font, left, SEARCH_Y, tableWidth(), 20, Component.translatable("civmodern.screen.search"));
+        searchBox.setHint(Component.translatable("civmodern.screen.search.hint").withStyle(ChatFormatting.DARK_GRAY));
+        searchBox.setMaxLength(64);
+        searchBox.setValue(search);
+        searchBox.setResponder(value -> {
+            search = value;
+            scroll = 0;
+        });
+        addRenderableWidget(searchBox);
+
         distanceButton = Button.builder(Component.empty(), button -> {
             if (sortMode == SortMode.DISTANCE) {
                 distanceAscending = !distanceAscending;
@@ -118,7 +132,13 @@ public class WaypointManagerScreen extends Screen {
     }
 
     private List<Waypoint> sortedWaypoints() {
-        List<Waypoint> list = new ArrayList<>(waypoints.getWaypoints());
+        String query = SearchFilter.normalise(search);
+        List<Waypoint> list = new ArrayList<>();
+        for (Waypoint waypoint : waypoints.getWaypoints()) {
+            if (SearchFilter.matches(waypoint.name(), query)) {
+                list.add(waypoint);
+            }
+        }
         if (sortMode == SortMode.DISTANCE) {
             LocalPlayer player = Minecraft.getInstance().player;
             double px = player == null ? 0 : player.getX();
@@ -154,7 +174,7 @@ public class WaypointManagerScreen extends Screen {
     }
 
     private int rowsTop() {
-        return 70;
+        return HEADER_ROW_Y + 14;
     }
 
     private int rowsBottom() {
@@ -198,7 +218,8 @@ public class WaypointManagerScreen extends Screen {
         guiGraphics.fill(left, top - 3, tableRight, top - 2, HEADER_COLOUR);
 
         if (list.isEmpty()) {
-            guiGraphics.drawCenteredString(font, Component.translatable("civmodern.screen.waypoints.empty"),
+            guiGraphics.drawCenteredString(font, Component.translatable(search.isBlank()
+                    ? "civmodern.screen.waypoints.empty" : "civmodern.screen.waypoints.nomatch"),
                 this.width / 2, (top + bottom) / 2 - font.lineHeight / 2, HEADER_COLOUR);
             return;
         }

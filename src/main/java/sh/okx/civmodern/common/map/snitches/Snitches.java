@@ -10,15 +10,19 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The known snitches for one world, persisted in the map database so they survive between
  * sessions. This is advisory: {@code /jalist} is the source of truth, and each complete pass
  * through it (every page, see {@link SnitchListCapture}) replaces the whole set, which is how
- * snitches the server has since removed drop out.
+ * snitches the server has since removed drop out. A snitch the player hides stays hidden across
+ * those passes, matched by position, until it drops out of the list.
  */
 public class Snitches {
 
@@ -29,6 +33,9 @@ public class Snitches {
      * it every frame, and copying a large collection that often is needless garbage.
      */
     private List<Snitch> snapshot = List.of();
+    /** The snapshot minus hidden snitches: what the map and minimap draw. */
+    private List<Snitch> visibleSnapshot = List.of();
+    private final Set<Long> hidden = new HashSet<>();
     private int version;
 
     public Snitches(Connection connection) {
@@ -55,6 +62,10 @@ public class Snitches {
                         dormantAt, cull, Instant.ofEpochMilli(resultSet.getLong("seen_at")));
                     byPosition.put(key(snitch), snitch);
                 }
+                ResultSet hiddenRows = statement.executeQuery("SELECT x, y, z FROM snitch_hidden");
+                while (hiddenRows.next()) {
+                    hidden.add(BlockPos.asLong(hiddenRows.getInt("x"), hiddenRows.getInt("y"), hiddenRows.getInt("z")));
+                }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
@@ -68,6 +79,13 @@ public class Snitches {
 
     private void changed() {
         snapshot = List.copyOf(byPosition.values());
+        List<Snitch> visible = new ArrayList<>(snapshot.size());
+        for (Snitch snitch : snapshot) {
+            if (!hidden.contains(key(snitch))) {
+                visible.add(snitch);
+            }
+        }
+        visibleSnapshot = List.copyOf(visible);
         version++;
     }
 
@@ -96,6 +114,9 @@ public class Snitches {
                         insert.addBatch();
                     }
                     insert.executeBatch();
+                    // A hidden snitch that has dropped out of the list forgets it was hidden.
+                    delete.executeUpdate("DELETE FROM snitch_hidden WHERE NOT EXISTS (SELECT 1 FROM snitches s "
+                        + "WHERE s.x = snitch_hidden.x AND s.y = snitch_hidden.y AND s.z = snitch_hidden.z)");
                     connection.commit();
                 } catch (SQLException e) {
                     connection.rollback();
@@ -112,29 +133,74 @@ public class Snitches {
         for (Snitch snitch : complete) {
             byPosition.put(key(snitch), snitch);
         }
+        hidden.retainAll(byPosition.keySet());
         changed();
     }
 
-    /** Forgets one snitch locally; the next complete {@code /jalist} pass brings it back if it still exists. */
+    /**
+     * Forgets one snitch locally, and that it was hidden; the next complete {@code /jalist} pass
+     * brings it back, visible, if it still exists.
+     */
     public void delete(Snitch snitch) {
         synchronized (this.connection) {
-            try (PreparedStatement statement = connection.prepareStatement("DELETE FROM snitches WHERE x = ? AND y = ? AND z = ?")) {
-                statement.setInt(1, snitch.x());
-                statement.setInt(2, snitch.y());
-                statement.setInt(3, snitch.z());
-                statement.executeUpdate();
+            try {
+                for (String table : new String[]{"snitches", "snitch_hidden"}) {
+                    try (PreparedStatement statement = connection.prepareStatement("DELETE FROM " + table + " WHERE x = ? AND y = ? AND z = ?")) {
+                        statement.setInt(1, snitch.x());
+                        statement.setInt(2, snitch.y());
+                        statement.setInt(3, snitch.z());
+                        statement.executeUpdate();
+                    }
+                }
             } catch (SQLException e) {
                 AbstractCivModernMod.LOGGER.error("Failed to delete snitch", e);
                 return;
             }
         }
         byPosition.remove(key(snitch));
+        hidden.remove(key(snitch));
         changed();
     }
 
-    /** Every known snitch, culled ones included; read-only, and safe to hold onto. */
+    public boolean isHidden(Snitch snitch) {
+        return hidden.contains(key(snitch));
+    }
+
+    /** Hides or shows one snitch on the map and minimap; it stays listed in the snitch manager. */
+    public void setHidden(Snitch snitch, boolean hide) {
+        if (hidden.contains(key(snitch)) == hide) {
+            return;
+        }
+        synchronized (this.connection) {
+            String sql = hide
+                ? "INSERT OR IGNORE INTO snitch_hidden (x, y, z) VALUES (?, ?, ?)"
+                : "DELETE FROM snitch_hidden WHERE x = ? AND y = ? AND z = ?";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, snitch.x());
+                statement.setInt(2, snitch.y());
+                statement.setInt(3, snitch.z());
+                statement.executeUpdate();
+            } catch (SQLException e) {
+                AbstractCivModernMod.LOGGER.error("Failed to save snitch visibility", e);
+                return;
+            }
+        }
+        if (hide) {
+            hidden.add(key(snitch));
+        } else {
+            hidden.remove(key(snitch));
+        }
+        changed();
+    }
+
+    /** Every known snitch, culled and hidden ones included; read-only, and safe to hold onto. */
     public List<Snitch> getSnitches() {
         return snapshot;
+    }
+
+    /** Every snitch not hidden by the player, culled ones included; read-only. */
+    public List<Snitch> getVisibleSnitches() {
+        return visibleSnapshot;
     }
 
     /** Bumped on every change, so a screen can tell when its sorted copy is stale. */
@@ -152,11 +218,13 @@ public class Snitches {
         synchronized (this.connection) {
             try (Statement statement = connection.createStatement()) {
                 statement.executeUpdate("DELETE FROM snitches");
+                statement.executeUpdate("DELETE FROM snitch_hidden");
             } catch (SQLException e) {
                 AbstractCivModernMod.LOGGER.error("Failed to clear snitches", e);
             }
         }
         byPosition.clear();
+        hidden.clear();
         changed();
         return count;
     }

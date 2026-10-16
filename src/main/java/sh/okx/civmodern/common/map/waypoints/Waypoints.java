@@ -91,7 +91,7 @@ public class Waypoints {
         }
     }
 
-    private @Nullable Waypoint get(int x, int y, int z) {
+    public @Nullable Waypoint get(int x, int y, int z) {
         Int2ObjectMap<Int2ObjectMap<Waypoint>> wx = this.waypoints.get(x);
         if (wx == null) {
             return null;

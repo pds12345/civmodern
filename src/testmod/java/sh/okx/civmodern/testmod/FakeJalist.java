@@ -1,4 +1,4 @@
-package sh.okx.civmodern.fabric.dev;
+package sh.okx.civmodern.testmod;
 
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.ChatFormatting;
@@ -27,7 +27,8 @@ import java.util.List;
 
 /**
  * Development only: a server-side stand-in for JukeAlert's {@code /jalist}, registered on the
- * integrated server of a singleplayer world when running from the dev environment, so the
+ * integrated server of a singleplayer world by the separate testmod (see
+ * {@link CivModernTestMod}), which never ships in the release jar, so the
  * snitch capture and the auto-pager can be tested without a real server. It mirrors the GUI in
  * {@code SnitchListCapture}'s javadoc: 45 snitches a page, the arrows in slots 45 and 53, the
  * exit door in 47. It runs JukeAlert's lifecycle on its own fake snitches, too: an active
@@ -111,7 +112,8 @@ public final class FakeJalist {
         Instant now = Instant.now();
         entries = new ArrayList<>(entries);
         for (int i = 0; i < names.length; i++) {
-            entries.add(active(centre.offset(i * 16, 0, 48), names[i], "LongNames", i % 2 == 0, now.plus(Duration.ofHours(200 + i))));
+            // A row of their own: "a" fills z 0 to 144 and "b" adds z -48, and a shared spot would merge them.
+            entries.add(active(centre.offset(i * 16, 0, -96), names[i], "LongNames", i % 2 == 0, now.plus(Duration.ofHours(200 + i))));
         }
         source.sendSuccess(() -> Component.literal("Fake /jalist: added " + names.length + " long-named snitches, " + entries.size() + " in all"), false);
         return 1;

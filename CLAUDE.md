@@ -97,6 +97,15 @@ expansion (`${mod_name}` etc.) — a literal `${` in a lang string breaks the bu
 Dev client test loop: create a singleplayer world (creative + cheats), set up the scenario
 with commands, then exercise the mod. Quit normally (not force-kill) so shutdown hooks run.
 
+**Testmod** (`src/testmod/`): a second, dev-only mod (`civmodern-testmod`) that `runClient`
+loads beside CivModern; the release jar is built from `main` alone, so it never ships (`build`
+still compiles it). It registers a fake JukeAlert `/jalist` on the singleplayer server, mirroring
+the real GUI layout, for testing the snitch capture and auto-pager. `/civmodern_fakejalist`
+alone prints usage: `a`/`b`/`c` pick a data set (100 / 60 / 450 snitches, incl. ones seconds
+from dormancy and culling) and restart its countdowns, `long` adds long-named snitches, and
+`content`/`slots` choose whether pages arrive as one packet or slot by slot. Dev-only helpers
+go here rather than behind runtime checks in `main`.
+
 The dev client cannot join real online-mode servers. For real-server testing, instruct
 the user to copy the built jar into their `.minecraft` or Modrinth directory. The
 user's own game may be running — never kill Java processes broadly; dev-client processes are

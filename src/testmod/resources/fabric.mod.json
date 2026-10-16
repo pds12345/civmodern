@@ -1,0 +1,19 @@
+{
+    "schemaVersion": 1,
+    "id": "civmodern-testmod",
+    "version": "1.0.0",
+    "name": "CivModern test tools",
+    "description": "Dev-only helpers for CivModern, such as a fake /jalist. Never shipped.",
+    "license": "GPLv3",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "sh.okx.civmodern.testmod.CivModernTestMod"
+        ]
+    },
+    "depends": {
+        "fabricloader": "*",
+        "fabric-command-api-v2": "*",
+        "civmodern": "*"
+    }
+}

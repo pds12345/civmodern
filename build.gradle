@@ -38,6 +38,32 @@ dependencies {
     include(variantOf(libs.zstd) { classifier("win_aarch64") })
 }
 
+// Dev-only tools, e.g. the fake /jalist, as a second mod in src/testmod. ./gradlew runClient
+// loads it beside CivModern; the jar (and dist/) is built from the main source set alone, so it
+// never ships. The same arrangement Fabric API uses for its own test mods.
+sourceSets {
+    testmod {
+        compileClasspath += main.compileClasspath
+        runtimeClasspath += main.runtimeClasspath
+    }
+}
+
+loom {
+    mods {
+        civmodern {
+            sourceSet sourceSets.main
+        }
+        "civmodern-testmod" {
+            sourceSet sourceSets.testmod
+        }
+    }
+    runs {
+        client {
+            source sourceSets.testmod
+        }
+    }
+}
+
 base {
     archivesName = project.archives_base_name
 }
@@ -108,3 +134,6 @@ tasks.register("copyJar", Copy) {
 }
 
 build.dependsOn copyJar
+// Compiled (not packaged) on every build, so a change that breaks the testmod shows up here
+// rather than only on the next runClient.
+build.dependsOn compileTestmodJava

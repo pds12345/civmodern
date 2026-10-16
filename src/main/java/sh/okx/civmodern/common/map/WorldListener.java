@@ -23,6 +23,7 @@ import sh.okx.civmodern.common.events.LeaveEvent;
 import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
 import sh.okx.civmodern.common.events.RespawnEvent;
 import sh.okx.civmodern.common.events.WorldRenderLastEvent;
+import sh.okx.civmodern.common.map.snitches.JalistAutoPager;
 import sh.okx.civmodern.common.map.snitches.SnitchListCapture;
 import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.converters.JourneymapConverter;
@@ -53,6 +54,7 @@ public class WorldListener {
     private Waypoints waypoints;
     private Snitches snitches;
     private final SnitchListCapture snitchCapture = new SnitchListCapture();
+    private final JalistAutoPager jalistPager = new JalistAutoPager();
     private PlayerRelations playerRelations;
     private Thread converter = null;
 
@@ -232,6 +234,8 @@ public class WorldListener {
         this.playerWaypoints = null;
         this.waypoints = null;
         this.snitches = null;
+        this.snitchCapture.reset();
+        this.jalistPager.stop();
         if (this.playerRelations != null) {
             this.playerRelations.close();
         }
@@ -293,6 +297,7 @@ public class WorldListener {
         }
         if (this.snitches != null) {
             this.snitchCapture.tick(this.snitches);
+            this.jalistPager.tick(this.snitchCapture);
         }
     }
 
@@ -328,6 +333,14 @@ public class WorldListener {
     /** {@code null} outside a world. */
     public Snitches getSnitches() {
         return this.snitches;
+    }
+
+    public SnitchListCapture getSnitchCapture() {
+        return this.snitchCapture;
+    }
+
+    public JalistAutoPager getJalistPager() {
+        return this.jalistPager;
     }
 
     public void setSeed(long seed) {

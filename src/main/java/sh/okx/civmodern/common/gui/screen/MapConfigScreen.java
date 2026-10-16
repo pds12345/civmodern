@@ -16,7 +16,9 @@ import sh.okx.civmodern.common.AbstractCivModernMod;
 import sh.okx.civmodern.common.CivMapConfig;
 import sh.okx.civmodern.common.ColourProvider;
 import sh.okx.civmodern.common.map.WorldListener;
+import sh.okx.civmodern.common.map.screen.SnitchManagerScreen;
 import sh.okx.civmodern.common.map.screen.WaypointManagerScreen;
+import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.screen.SnitchSizePreviewScreen;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.waypoints.Waypoints;
@@ -183,13 +185,25 @@ public class MapConfigScreen extends AbstractConfigScreen {
             if (waypoints != null) {
                 Minecraft.getInstance().setScreen(new WaypointManagerScreen(this, waypoints));
             }
-        }).pos(centre, offset).size(150, 20).build();
+        }).pos(left, offset).size(150, 20).build();
         // Waypoints are per-world storage, so from the title screen there is nothing to manage.
         managerButton.active = waypoints != null;
         if (waypoints == null) {
             managerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
         }
         addBodyWidget(managerButton);
+        WorldListener worlds = AbstractCivModernMod.getInstance().getWorldListener();
+        Snitches snitches = worlds.getSnitches();
+        Button snitchManagerButton = Button.builder(Component.translatable("civmodern.screen.map.snitchmanager"), button -> {
+            if (snitches != null) {
+                Minecraft.getInstance().setScreen(new SnitchManagerScreen(this, snitches, worlds.getJalistPager()));
+            }
+        }).pos(right, offset).size(150, 20).build();
+        snitchManagerButton.active = snitches != null;
+        if (snitches == null) {
+            snitchManagerButton.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.map.waypointmanager.noworld")));
+        }
+        addBodyWidget(snitchManagerButton);
         offset += 24;
         // On a log scale: a linear slider over 100..30000 would cram the useful few hundred to
         // few thousand blocks into its first pixels. The slider works in log10, so get(), set()

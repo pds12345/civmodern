@@ -7,7 +7,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 
-/** The two JukeAlert snitch blocks, with the lifespan each starts with when placed or refreshed. */
+/**
+ * The two JukeAlert snitch blocks, with the lifespan each starts with when placed or refreshed
+ * and how long it then stays dormant before JukeAlert culls (deletes) it.
+ */
 public enum SnitchType {
     JUKEBOX(Items.JUKEBOX, Duration.ofHours(1008), Identifier.withDefaultNamespace("textures/block/jukebox_side.png")),
     NOTE_BLOCK(Items.NOTE_BLOCK, Duration.ofHours(672), Identifier.withDefaultNamespace("textures/block/note_block.png"));
@@ -26,6 +29,22 @@ public enum SnitchType {
     public Duration lifespan() {
         return lifespan;
     }
+
+    /**
+     * How long a snitch stays dormant before it is culled. Assumed rather than read from the
+     * server: {@code /jalist} only shows the countdown for the current stage, so an active
+     * snitch's cull time is its dormancy time plus this.
+     */
+    public Duration dormancy() {
+        return switch (this) {
+            case JUKEBOX -> JUKEBOX_DORMANCY;
+            case NOTE_BLOCK -> NOTE_BLOCK_DORMANCY;
+        };
+    }
+
+    // Unconfirmed for CivNodes; JukeAlert's own defaults are 4 weeks for jukeboxes, 2 for note blocks.
+    private static final Duration JUKEBOX_DORMANCY = Duration.ofDays(14);
+    private static final Duration NOTE_BLOCK_DORMANCY = Duration.ofDays(14);
 
     public Identifier texture() {
         return texture;

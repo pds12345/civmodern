@@ -79,9 +79,11 @@ public final class SnitchRenderer {
         Component name = snitch.name().isEmpty()
             ? Component.translatable("civmodern.snitches.unnamed").withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY)
             : Component.literal(snitch.name()).withStyle(ChatFormatting.GOLD);
-        Component life = snitch.isDormant(now)
-            ? Component.translatable("civmodern.snitches.dormant").withStyle(ChatFormatting.RED)
-            : Component.translatable("civmodern.snitches.timeleft", formatRemaining(snitch.remaining(now))).withStyle(ChatFormatting.AQUA);
+        Component life = switch (snitch.state(now)) {
+            case ACTIVE -> Component.translatable("civmodern.snitches.timeleft", formatRemaining(snitch.remaining(now))).withStyle(ChatFormatting.AQUA);
+            case DORMANT -> Component.translatable("civmodern.snitches.dormant", formatRemaining(snitch.untilCull(now))).withStyle(ChatFormatting.LIGHT_PURPLE);
+            case CULLED -> Component.translatable("civmodern.snitches.culled").withStyle(ChatFormatting.RED);
+        };
         // When this row was last recorded from /jalist: local time to the minute, plus how long ago.
         // Every snitch on a page is recorded together, so this is effectively the page's refresh time.
         String seen = SEEN_FORMAT.format(snitch.seenAt().atZone(ZoneId.systemDefault()));

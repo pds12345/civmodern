@@ -479,7 +479,12 @@ public class MapScreen extends Screen {
             int screenWidth = window.getGuiScaledWidth();
             int screenHeight = window.getGuiScaledHeight();
             List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
+            Instant now = Instant.now();
             for (Snitch snitch : snitches.getSnitches()) {
+                // Culled snitches stay listed in the snitch manager but are most likely gone.
+                if (snitch.isCulled(now)) {
+                    continue;
+                }
                 float gx = (float) ((snitch.x() + 0.5 - this.x) / scale);
                 float gy = (float) ((snitch.z() + 0.5 - this.y) / scale);
                 if (gx >= -margin && gy >= -margin && gx <= screenWidth + margin && gy <= screenHeight + margin) {
@@ -489,7 +494,7 @@ public class MapScreen extends Screen {
             float opacity = config.getSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
             guiGraphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
                 new Matrix3x2f(matrices), window.getGuiScale(), 0, 0, screenWidth, screenHeight,
-                placements, snitchScale, Instant.now(), opacity, guiGraphics.scissorStack.peek()));
+                placements, snitchScale, now, opacity, guiGraphics.scissorStack.peek()));
         }
 
 //        RenderSystem.depthFunc(GL_LEQUAL);
@@ -880,7 +885,11 @@ public class MapScreen extends Screen {
         if (hoveredWaypoint == null && snitchLayerVisible()) {
             double hitboxHalfSize = (SnitchRenderer.HALF + 1) * snitchScale();
             double best = Double.MAX_VALUE;
+            Instant now = Instant.now();
             for (Snitch snitch : snitches.getSnitches()) {
+                if (snitch.isCulled(now)) {
+                    continue;
+                }
                 double offsetX = (snitch.x() + 0.5 - mouseWorldX) / scale;
                 double offsetY = (snitch.z() + 0.5 - mouseWorldY) / scale;
                 double distance = Math.abs(offsetX) + Math.abs(offsetY);

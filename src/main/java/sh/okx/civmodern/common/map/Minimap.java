@@ -381,7 +381,12 @@ public class Minimap {
         if (!snitchList.isEmpty()) {
             float snitchScale = WaypointScaling.scale(zoom, snitchBaseZoom, snitchZoomLogBase);
             List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
+            Instant now = Instant.now();
             for (Snitch snitch : snitchList) {
+                // Culled snitches stay listed in the snitch manager but are most likely gone.
+                if (snitch.isCulled(now)) {
+                    continue;
+                }
                 Vector2d at = onMap((snitch.x() + 0.5 - x) / zoom, (snitch.z() + 0.5 - y) / zoom, drawOffset, size, cos, sin);
                 if (!outside(at.x, at.y, size, circular)) {
                     placements.add(new SnitchLayerRenderState.Placement(snitch, (float) at.x, (float) at.y));
@@ -390,7 +395,7 @@ public class Minimap {
             float opacity = live && config.getMinimapSnitchLayerMode() == OverlayMode.TRANSLUCENT ? config.getSnitchTranslucentOpacity() : 1f;
             graphics.guiRenderState.submitPicturesInPictureState(new SnitchLayerRenderState(
                 new Matrix3x2f(matrices), mc.getWindow().getGuiScale(), translateX, translateY, (int) size, (int) size,
-                placements, snitchScale, Instant.now(), opacity, pictureScissor));
+                placements, snitchScale, now, opacity, pictureScissor));
         }
 
         if (!live || config.isWaypointRenderingEnabled()) {

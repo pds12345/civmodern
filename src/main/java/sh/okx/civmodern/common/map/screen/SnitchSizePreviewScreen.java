@@ -28,7 +28,7 @@ public class SnitchSizePreviewScreen extends IconSizePreviewScreen {
             config.getMinimapSnitchBaseZoom(), config.getMinimapSnitchZoomLogBase());
         // A freshly placed jukebox: full life ahead, so the outline is plain black.
         Instant now = Instant.now();
-        this.previewSnitch = new Snitch(blockX, blockY, blockZ,
+        this.previewSnitch = Snitch.active(blockX, blockY, blockZ,
             Component.translatable("civmodern.screen.snitchpreview.snitchname").getString(), "",
             SnitchType.JUKEBOX, now.plus(SnitchType.JUKEBOX.lifespan()), now);
     }

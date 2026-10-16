@@ -78,7 +78,12 @@ public class MapFolder {
                 } catch (SQLException ignored) {
                 }
                 // The player's own JukeAlert snitches, captured from /jalist. Epoch milliseconds.
-                statement.execute("CREATE TABLE IF NOT EXISTS snitches (x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, name TEXT NOT NULL, group_name TEXT NOT NULL, type TEXT NOT NULL, dormant_at INT NOT NULL, seen_at INT NOT NULL, PRIMARY KEY (x, y, z))");
+                statement.execute("CREATE TABLE IF NOT EXISTS snitches (x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, name TEXT NOT NULL, group_name TEXT NOT NULL, type TEXT NOT NULL, dormant_at INT NOT NULL, cull_at INT, seen_at INT NOT NULL, PRIMARY KEY (x, y, z))");
+                // Epoch milliseconds, nullable: rows from before it existed get an estimate on load.
+                try {
+                    statement.execute("ALTER TABLE snitches ADD COLUMN cull_at INT");
+                } catch (SQLException ignored) {
+                }
                 statement.execute("CREATE TABLE IF NOT EXISTS blocks (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS biomes (name TEXT NOT NULL UNIQUE, id INTEGER NOT NULL UNIQUE)");
                 statement.execute("CREATE TABLE IF NOT EXISTS regions (x INT NOT NULL, z INT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (x, z, type))");

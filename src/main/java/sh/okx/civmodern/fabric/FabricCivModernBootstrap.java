@@ -2,6 +2,8 @@ package sh.okx.civmodern.fabric;
 
 import com.mojang.brigadier.CommandDispatcher;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -26,6 +28,7 @@ import sh.okx.civmodern.common.events.PostRenderGameOverlayEvent;
 import sh.okx.civmodern.common.events.WorldRenderLastEvent;
 import sh.okx.civmodern.common.map.nodes.CivNodesPayload;
 import sh.okx.civmodern.common.map.nodes.NodeApiClient;
+import sh.okx.civmodern.fabric.dev.FakeJalist;
 
 public class FabricCivModernBootstrap implements ClientModInitializer {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -70,6 +73,12 @@ public class FabricCivModernBootstrap implements ClientModInitializer {
         });
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> mod.eventBus.post(new CommandRegistration((CommandDispatcher<ClientSuggestionProvider>) (CommandDispatcher<?>) dispatcher, registryAccess)));
+
+        // A stand-in /jalist on the singleplayer server, for testing the snitch capture. Never
+        // in a built jar: isDevelopmentEnvironment is only true under ./gradlew runClient.
+        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+            CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> FakeJalist.register(dispatcher));
+        }
 
         ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
             if (!overlay) {

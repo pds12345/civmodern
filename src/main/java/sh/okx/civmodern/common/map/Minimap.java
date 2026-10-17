@@ -33,6 +33,7 @@ import sh.okx.civmodern.common.map.screen.IconSizePreviewScreen;
 import sh.okx.civmodern.common.map.screen.WaypointSizePreviewScreen;
 import sh.okx.civmodern.common.map.snitches.Snitch;
 import sh.okx.civmodern.common.map.snitches.SnitchLayerRenderState;
+import sh.okx.civmodern.common.map.snitches.SnitchRenderer;
 import sh.okx.civmodern.common.navigation.RouteEta;
 import sh.okx.civmodern.common.map.snitches.Snitches;
 import sh.okx.civmodern.common.map.waypoints.PlayerWaypoint;
@@ -120,8 +121,15 @@ public class Minimap {
         }
 
         // The layer mode only hides; the master switch in the settings covers the map too.
-        List<Snitch> snitchList = config.isSnitchesEnabled() && snitches != null && config.getMinimapSnitchLayerMode().isVisible()
-            ? snitches.getVisibleSnitches() : List.of();
+        List<Snitch> snitchList = List.of();
+        if (config.isSnitchesEnabled() && snitches != null && config.getMinimapSnitchLayerMode().isVisible()) {
+            // Only the cells around the player. The minimap shows size * zoom blocks across, up to
+            // sqrt(2) times that when rotating (0.75 > sqrt(2) / 2), plus room for icons on the edge.
+            Entity focus = MapFocus.entity();
+            float reach = config.getMinimapSize() * config.getMinimapZoom() * 0.75f
+                + (SnitchRenderer.HALF + 1) * config.getMinimapZoom() * 2;
+            snitchList = snitches.getVisibleSnitches(focus.getX() - reach, focus.getZ() - reach, focus.getX() + reach, focus.getZ() + reach);
+        }
         render(event.guiGraphics(), event.deltaTick(), waypoints.getWaypoints(), snitchList, true,
             config.getMinimapIconBaseZoom(), config.getMinimapIconZoomLogBase(),
             config.getMinimapSnitchBaseZoom(), config.getMinimapSnitchZoomLogBase());

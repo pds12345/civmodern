@@ -406,13 +406,16 @@ public class MapScreen extends Screen {
         // icons and name labels draw over it.
         if (snitchLayerVisible()) {
             float snitchScale = snitchScale();
-            // Only what is on screen: zoomed out, the list holds the whole world's snitches.
+            // Only what is on screen, plus an icon's width so ones straddling the edge still draw.
             float margin = (SnitchRenderer.HALF + 1) * snitchScale;
             int screenWidth = window.getGuiScaledWidth();
             int screenHeight = window.getGuiScaledHeight();
             List<SnitchLayerRenderState.Placement> placements = new ArrayList<>();
             Instant now = Instant.now();
-            for (Snitch snitch : snitches.getVisibleSnitches()) {
+            // The cells in view, in world blocks; the exact test below keeps only the drawn ones.
+            List<Snitch> nearby = snitches.getVisibleSnitches(this.x - margin * scale, this.y - margin * scale,
+                this.x + (screenWidth + margin) * scale, this.y + (screenHeight + margin) * scale);
+            for (Snitch snitch : nearby) {
                 // Culled snitches stay listed in the snitch manager but are most likely gone.
                 if (snitch.isCulled(now)) {
                     continue;
@@ -896,7 +899,9 @@ public class MapScreen extends Screen {
             double hitboxHalfSize = (SnitchRenderer.HALF + 1) * snitchScale();
             double best = Double.MAX_VALUE;
             Instant now = Instant.now();
-            for (Snitch snitch : snitches.getVisibleSnitches()) {
+            // Only the cells around the cursor: the hitbox in world blocks, plus the half-block centring.
+            double reach = hitboxHalfSize * scale + 1;
+            for (Snitch snitch : snitches.getVisibleSnitches(mouseWorldX - reach, mouseWorldY - reach, mouseWorldX + reach, mouseWorldY + reach)) {
                 if (snitch.isCulled(now)) {
                     continue;
                 }

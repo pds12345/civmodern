@@ -1,6 +1,9 @@
 package sh.okx.civmodern.common.map.snitches;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import sh.okx.civmodern.common.AbstractCivModernMod;
 
 import java.sql.Connection;
@@ -35,6 +38,12 @@ public class Snitches {
     private List<Snitch> snapshot = List.of();
     /** The snapshot minus hidden snitches: what the map and minimap draw. */
     private List<Snitch> visibleSnapshot = List.of();
+    /**
+     * The visible snitches bucketed by 512x512-block cell, so the map and minimap only look at
+     * the cells in view each frame instead of every snitch. Rebuilt with the snapshots.
+     */
+    private Long2ObjectMap<List<Snitch>> cells = new Long2ObjectOpenHashMap<>();
+    private static final int CELL_SHIFT = 9;
     private final Set<Long> hidden = new HashSet<>();
     private int version;
 
@@ -86,7 +95,16 @@ public class Snitches {
             }
         }
         visibleSnapshot = List.copyOf(visible);
+        Long2ObjectMap<List<Snitch>> cells = new Long2ObjectOpenHashMap<>();
+        for (Snitch snitch : visibleSnapshot) {
+            cells.computeIfAbsent(cellKey(snitch.x() >> CELL_SHIFT, snitch.z() >> CELL_SHIFT), k -> new ArrayList<>()).add(snitch);
+        }
+        this.cells = cells;
         version++;
+    }
+
+    private static long cellKey(int cellX, int cellZ) {
+        return (long) cellX << 32 | (cellZ & 0xFFFFFFFFL);
     }
 
     /**
@@ -201,6 +219,40 @@ public class Snitches {
     /** Every snitch not hidden by the player, culled ones included; read-only. */
     public List<Snitch> getVisibleSnitches() {
         return visibleSnapshot;
+    }
+
+    /**
+     * The visible snitches in the cells overlapping a block-coordinate rectangle: a superset of
+     * those inside it, so the caller still tests each one exactly. Costs the number of cells in
+     * view rather than the number of snitches; zoomed so far out that the view spans more cells
+     * than hold any snitch, it walks the occupied cells instead.
+     */
+    public List<Snitch> getVisibleSnitches(double minX, double minZ, double maxX, double maxZ) {
+        int cellX0 = Mth.floor(minX) >> CELL_SHIFT;
+        int cellZ0 = Mth.floor(minZ) >> CELL_SHIFT;
+        int cellX1 = Mth.floor(maxX) >> CELL_SHIFT;
+        int cellZ1 = Mth.floor(maxZ) >> CELL_SHIFT;
+        List<Snitch> found = new ArrayList<>();
+        long span = (long) (cellX1 - cellX0 + 1) * (cellZ1 - cellZ0 + 1);
+        if (span > cells.size()) {
+            for (Long2ObjectMap.Entry<List<Snitch>> cell : cells.long2ObjectEntrySet()) {
+                int cellX = (int) (cell.getLongKey() >> 32);
+                int cellZ = (int) cell.getLongKey();
+                if (cellX >= cellX0 && cellX <= cellX1 && cellZ >= cellZ0 && cellZ <= cellZ1) {
+                    found.addAll(cell.getValue());
+                }
+            }
+            return found;
+        }
+        for (int cellX = cellX0; cellX <= cellX1; cellX++) {
+            for (int cellZ = cellZ0; cellZ <= cellZ1; cellZ++) {
+                List<Snitch> cell = cells.get(cellKey(cellX, cellZ));
+                if (cell != null) {
+                    found.addAll(cell);
+                }
+            }
+        }
+        return found;
     }
 
     /** Bumped on every change, so a screen can tell when its sorted copy is stale. */

@@ -41,9 +41,12 @@ import java.util.List;
  *   is 100 snitches over 3 pages, including one 20 seconds from dormancy and one 20 seconds from
  *   being culled. "b" keeps the first 50 of "a" and adds 10 new ones on group "VariantB", over 2
  *   pages, so a refresh after switching shows the old 50 disappearing. "c" is "a" grown to 450
- *   snitches over 10 pages, slow enough to leave part-way by hand.</li>
- *   <li>{@code /civmodern_fakejalist long} adds five snitches with names too long for the snitch
- *   manager's name column, on group "LongNames", to whichever data set is current.</li>
+ *   snitches over 10 pages, slow enough to leave part-way by hand. "huge" is 20,000 snitches
+ *   spread over about +-20,000 blocks, the three test snitches included, for profiling large
+ *   networks; a refresh pages through it in about two minutes.</li>
+ *   <li>{@code /civmodern_fakejalist long} adds six snitches to whichever data set is current:
+ *   long names on short groups, short names on long groups, both long, and a short-and-short
+ *   control, all on groups containing "Long".</li>
  *   <li>{@code /civmodern_fakejalist content|slots} picks how a page change reaches the client:
  *   one whole-window packet (the default, as JukeAlert is believed to do) or slot by slot.</li>
  * </ul>
@@ -51,6 +54,8 @@ import java.util.List;
 public final class FakeJalist {
 
     private static final int PER_PAGE = 45;
+    /** Snitches in the "huge" data set: 445 pages, about two minutes to refresh at 250 ms a page. */
+    private static final int HUGE_COUNT = 20000;
     private static final Duration DORMANCY = Duration.ofDays(14);
 
     private record Entry(BlockPos pos, String name, String group, boolean jukebox, Instant dormantAt, Instant cullAt) {
@@ -77,13 +82,14 @@ public final class FakeJalist {
         dispatcher.register(Commands.literal("civmodern_fakejalist")
             .executes(context -> {
                 context.getSource().sendSuccess(() -> Component.literal(
-                    "Usage: /civmodern_fakejalist a|b|c (data set, restarts countdowns), long (adds long-named snitches) or content|slots (how pages arrive). Now: "
+                    "Usage: /civmodern_fakejalist a|b|c|huge (data set, restarts countdowns), long (adds snitches with long names/groups) or content|slots (how pages arrive). Now: "
                         + variant + ", " + (slotUpdates ? "slots" : "content")), false);
                 return 1;
             })
             .then(Commands.literal("a").executes(context -> select(context.getSource(), "a")))
             .then(Commands.literal("b").executes(context -> select(context.getSource(), "b")))
             .then(Commands.literal("c").executes(context -> select(context.getSource(), "c")))
+            .then(Commands.literal("huge").executes(context -> select(context.getSource(), "huge")))
             .then(Commands.literal("content").executes(context -> mode(context.getSource(), false)))
             .then(Commands.literal("slots").executes(context -> mode(context.getSource(), true)))
             .then(Commands.literal("long").executes(context -> addLongNames(context.getSource()))));
@@ -96,26 +102,34 @@ public final class FakeJalist {
         return 1;
     }
 
-    /** Adds a few snitches whose names are too long for the snitch manager's name column. */
+    /**
+     * Adds snitches whose names, groups, or both are too long for the snitch manager's columns,
+     * plus a short-and-short control. Every group contains "Long", so a group search for it
+     * finds them all.
+     */
     private static int addLongNames(CommandSourceStack source) {
         BlockPos centre = BlockPos.containing(source.getPosition());
         if (entries == null) {
             generate(centre);
         }
-        String[] names = {
-            "Northern-Border-Watchtower-Main-Gate-Entrance",
-            "Fortuna-Farm-Initial-Surface-Expansion-East-Wing",
-            "Very Long Snitch Name With Spaces In It For Testing",
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-            "Short",
+        String[][] namesAndGroups = {
+            {"Northern-Border-Watchtower-Main-Gate-Entrance", "LongNames"},
+            {"Fortuna-Farm-Initial-Surface-Expansion-East-Wing", "LongGroup-Fortuna-Farm-Expansion-East"},
+            {"Short", "LongGroup-Northern-Border-Watchtower-Network"},
+            {"Very Long Snitch Name With Spaces In It For Testing", "Long Group Name With Spaces For Testing"},
+            // Wide glyphs: fewer characters fit, so these cut off sooner than their length suggests.
+            {"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW", "LongWWWWWWWWWWWWWWWWWWWW"},
+            {"Short", "LongNames"},
         };
         Instant now = Instant.now();
         entries = new ArrayList<>(entries);
-        for (int i = 0; i < names.length; i++) {
+        for (int i = 0; i < namesAndGroups.length; i++) {
             // A row of their own: "a" fills z 0 to 144 and "b" adds z -48, and a shared spot would merge them.
-            entries.add(active(centre.offset(i * 16, 0, -96), names[i], "LongNames", i % 2 == 0, now.plus(Duration.ofHours(200 + i))));
+            entries.add(active(centre.offset(i * 16, 0, -96), namesAndGroups[i][0], namesAndGroups[i][1], i % 2 == 0,
+                now.plus(Duration.ofHours(200 + i))));
         }
-        source.sendSuccess(() -> Component.literal("Fake /jalist: added " + names.length + " long-named snitches, " + entries.size() + " in all"), false);
+        source.sendSuccess(() -> Component.literal("Fake /jalist: added " + namesAndGroups.length
+            + " snitches with long names and/or groups, " + entries.size() + " in all"), false);
         return 1;
     }
 
@@ -132,6 +146,17 @@ public final class FakeJalist {
         variantA.add(active(centre.offset(0, 0, 0), "Test-GoesDormant", "TestGroup", false, now.plusSeconds(20)));
         variantA.add(dormant(centre.offset(16, 0, 0), "Test-GetsCulled", "TestGroup", false, now.plusSeconds(20)));
         variantA.add(dormant(centre.offset(32, 0, 0), "Test-Dormant", "TestGroup", true, now.plus(Duration.ofDays(3))));
+        if (variant.equals("huge")) {
+            // A wide, sparse spread like a big network's: a 142-wide grid, 282 blocks apart,
+            // about +-20,000 blocks around the centre, so the map and minimap only ever see a few.
+            for (int i = 3; i < HUGE_COUNT; i++) {
+                BlockPos pos = centre.offset(-20000 + (i % 142) * 282, 0, -20000 + (i / 142) * 282);
+                variantA.add(active(pos, i % 7 == 0 ? "" : "Huge-" + i, "HugeGroup-" + (i % 20), i % 3 == 0,
+                    now.plus(Duration.ofHours(i % 900)).plusSeconds(i * 37L % 3600)));
+            }
+            entries = variantA;
+            return;
+        }
         int count = variant.equals("c") ? 450 : 100;
         for (int i = 3; i < count; i++) {
             BlockPos pos = centre.offset((i % 10) * 16, 0, (i / 10) * 16);

@@ -430,7 +430,7 @@ public class SnitchManagerScreen extends Screen {
 
         Instant now = Instant.now();
         int hoveredRow = menuGroup != null ? -1 : rowAt(mouseX, mouseY);
-        Component tooltip = null;
+        List<Component> tooltip = null;
 
         guiGraphics.enableScissor(left, top, right, bottom);
         // Only the rows in view are drawn, so a long list costs no more than a short one.
@@ -454,7 +454,7 @@ public class SnitchManagerScreen extends Screen {
             guiGraphics.blit(RenderPipelines.GUI_TEXTURED, TOGGLE_TEXTURE, toggleLeft(), rowY + (ROW_HEIGHT - TOGGLE_SIZE) / 2,
                 0, hidden ? 20 : 0, TOGGLE_SIZE, TOGGLE_SIZE, 20, 20, 20, 40, -1);
             if (rowHovered && within(mouseX, toggleLeft(), TOGGLE_SIZE)) {
-                tooltip = Component.translatable(hidden ? "civmodern.screen.snitchmanager.show" : "civmodern.screen.snitchmanager.hide");
+                tooltip = List.of(Component.translatable(hidden ? "civmodern.screen.snitchmanager.show" : "civmodern.screen.snitchmanager.hide"));
             }
 
             boolean nameHovered = rowHovered && within(mouseX, nameLeft, groupLeft - COLUMN_GAP - nameLeft);
@@ -469,20 +469,25 @@ public class SnitchManagerScreen extends Screen {
                 boolean onButton = within(mouseX, waypointLeft, WAYPOINT_BUTTON_SIZE);
                 // The cell narrows to make room for the button, so a name can be cut off only while hovered.
                 if (!onButton && shownName.length() < name.length()) {
-                    tooltip = Component.literal(name);
+                    tooltip = List.of(Component.literal(name));
                 }
                 guiGraphics.fill(waypointLeft - 1, buttonY, waypointLeft + WAYPOINT_BUTTON_SIZE + 1, buttonY + BUTTON_HEIGHT,
                     onButton ? BUTTON_HOVER_COLOUR : BUTTON_COLOUR);
                 guiGraphics.blit(RenderPipelines.GUI_TEXTURED, WAYPOINT_TEXTURE, waypointLeft, buttonY, 0, 0,
                     WAYPOINT_BUTTON_SIZE, WAYPOINT_BUTTON_SIZE, 16, 16, 0xFF000000 | WAYPOINT_COLOUR);
                 if (onButton) {
-                    tooltip = Component.translatable("civmodern.screen.snitchmanager.waypoint");
+                    tooltip = List.of(Component.translatable("civmodern.screen.snitchmanager.waypoint"));
                 }
             }
 
-            guiGraphics.drawString(font, font.plainSubstrByWidth(snitch.group(), GROUP_WIDTH), groupLeft, textY, hidden ? HIDDEN_COLOUR : GROUP_COLOUR);
+            String shownGroup = font.plainSubstrByWidth(snitch.group(), GROUP_WIDTH);
+            guiGraphics.drawString(font, shownGroup, groupLeft, textY, hidden ? HIDDEN_COLOUR : GROUP_COLOUR);
             if (rowHovered && within(mouseX, groupLeft, GROUP_WIDTH)) {
-                tooltip = Component.translatable("civmodern.screen.snitchmanager.group.tooltip");
+                Component hint = Component.translatable("civmodern.screen.snitchmanager.group.tooltip").withStyle(ChatFormatting.GRAY);
+                // A cut-off group gets its full name above the hint.
+                tooltip = shownGroup.length() < snitch.group().length()
+                    ? List.of(Component.literal(snitch.group()), hint)
+                    : List.of(hint);
             }
             int numberColour = hidden ? HIDDEN_COLOUR : NAME_COLOUR;
             guiGraphics.drawString(font, font.plainSubstrByWidth(snitch.x() + ", " + snitch.y() + ", " + snitch.z(), COORDS_WIDTH), coordsLeft, textY, numberColour);
@@ -504,7 +509,7 @@ public class SnitchManagerScreen extends Screen {
         }
 
         if (tooltip != null) {
-            guiGraphics.setTooltipForNextFrame(font, tooltip, mouseX, mouseY);
+            guiGraphics.setComponentTooltipForNextFrame(font, tooltip, mouseX, mouseY);
         }
     }
 

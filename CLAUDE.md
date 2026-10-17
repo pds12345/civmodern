@@ -101,8 +101,8 @@ with commands, then exercise the mod. Quit normally (not force-kill) so shutdown
 loads beside CivModern; the release jar is built from `main` alone, so it never ships (`build`
 still compiles it). It registers a fake JukeAlert `/jalist` on the singleplayer server, mirroring
 the real GUI layout, for testing the snitch capture and auto-pager. `/civmodern_fakejalist`
-alone prints usage: `a`/`b`/`c` pick a data set (100 / 60 / 450 snitches, incl. ones seconds
-from dormancy and culling) and restart its countdowns, `long` adds long-named snitches, and
+alone prints usage: `a`/`b`/`c`/`huge` pick a data set (100 / 60 / 450 / 20,000 snitches, incl.
+ones seconds from dormancy and culling; `huge` is for profiling) and restart its countdowns, `long` adds snitches with long names and/or groups, and
 `content`/`slots` choose whether pages arrive as one packet or slot by slot. Dev-only helpers
 go here rather than behind runtime checks in `main`.
 

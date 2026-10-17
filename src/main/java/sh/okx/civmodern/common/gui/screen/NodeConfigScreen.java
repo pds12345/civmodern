@@ -1,7 +1,10 @@
 package sh.okx.civmodern.common.gui.screen;
 
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
@@ -29,6 +32,11 @@ public class NodeConfigScreen extends AbstractConfigScreen {
     /** Set while the widgets are laid out, so the status text follows the handshake button. */
     private int statusY;
 
+    /** Everything below the master switch, greyed out while node features are off. */
+    private final List<AbstractWidget> dependents = new ArrayList<>();
+
+    private Button handshake;
+
     public NodeConfigScreen(CivMapConfig config, NodeApiClient nodeApi, Screen parent) {
         super(config, parent, Component.translatable("civmodern.screen.nodes.title"));
         this.nodeApi = nodeApi;
@@ -44,16 +52,30 @@ public class NodeConfigScreen extends AbstractConfigScreen {
         int right = left + 160;
         int centre = left + 80;
         int offset = getBodyY();
+        this.dependents.clear();
+
+        addRenderableWidget(new ToggleButton(centre, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+            Component.translatable("civmodern.screen.nodes.features"),
+            this.config::isNodeFeaturesEnabled, enabled -> {
+                this.config.setNodeFeaturesEnabled(enabled);
+                updateDependents();
+            },
+            Tooltip.create(Component.translatable("civmodern.screen.nodes.features.tooltip")),
+            ToggleButton.DEFAULT_NARRATION,
+            Component.translatable("civmodern.screen.nodes.features.enabled"),
+            Component.translatable("civmodern.screen.nodes.features.disabled")));
+
+        offset += 30;
 
         // Deliberately not a display toggle: that one lives on the map itself. This only decides
         // whether the mod keeps asking the server for data.
-        addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+        addDependent(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
             Component.translatable("civmodern.screen.nodes.query"),
             this.config::isNodeQueryEnabled, this.config::setNodeQueryEnabled,
             Tooltip.create(Component.translatable("civmodern.screen.nodes.query.tooltip")),
             ToggleButton.DEFAULT_NARRATION));
 
-        addRenderableWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+        addDependent(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
             Component.translatable("civmodern.screen.nodes.borders"),
             this.config::isNodeOverlayBorders, this.config::setNodeOverlayBorders,
             Tooltip.create(Component.translatable("civmodern.screen.nodes.borders.tooltip")),
@@ -61,7 +83,7 @@ public class NodeConfigScreen extends AbstractConfigScreen {
 
         offset += 24;
 
-        addRenderableWidget(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+        addDependent(new ToggleButton(left, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
             Component.translatable("civmodern.screen.nodes.grid"),
             this.config::isNodeChunkGrid, this.config::setNodeChunkGrid,
             Tooltip.create(Component.translatable("civmodern.screen.nodes.grid.tooltip")),
@@ -69,7 +91,7 @@ public class NodeConfigScreen extends AbstractConfigScreen {
 
         // Hides only the unclaimed layer, so the map still queries and caches it: the toggle is a
         // view of the same data, not a second freeze switch.
-        addRenderableWidget(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
+        addDependent(new ToggleButton(right, offset, ToggleButton.DEFAULT_BUTTON_WIDTH,
             Component.translatable("civmodern.screen.nodes.unclaimed"),
             this.config::isNodeShowUnclaimed, this.config::setNodeShowUnclaimed,
             Tooltip.create(Component.translatable("civmodern.screen.nodes.unclaimed.tooltip")),
@@ -98,7 +120,7 @@ public class NodeConfigScreen extends AbstractConfigScreen {
             }
         });
         solidOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.nodes.opacity.tooltip")));
-        addRenderableWidget(solidOpacity);
+        addDependent(solidOpacity);
 
         DoubleOptionUpdateableSliderWidget translucentOpacity =
             new DoubleOptionUpdateableSliderWidget(right, offset, 150, 20, 0.05, 1.0, new DoubleValue() {
@@ -119,11 +141,11 @@ public class NodeConfigScreen extends AbstractConfigScreen {
             }
         });
         translucentOpacity.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.nodes.translucentopacity.tooltip")));
-        addRenderableWidget(translucentOpacity);
+        addDependent(translucentOpacity);
 
         offset += 24;
 
-        addRenderableWidget(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20,
+        addDependent(new DoubleOptionUpdateableSliderWidget(left, offset, 150, 20,
             NodeProtocol.MIN_QUERY_SIZE, NodeProtocol.MAX_QUERY_SIZE, new DoubleValue() {
             @Override
             public double get() {
@@ -148,14 +170,13 @@ public class NodeConfigScreen extends AbstractConfigScreen {
 
         offset += 36;
 
-        Button handshake = Button.builder(Component.translatable("civmodern.screen.nodes.handshake"), button -> {
+        this.handshake = Button.builder(Component.translatable("civmodern.screen.nodes.handshake"), button -> {
             if (nodeApi != null) {
                 this.handshakeResult = nodeApi.retryHandshake();
             }
         }).pos(centre, offset).size(150, 20).build();
         handshake.setTooltip(Tooltip.create(Component.translatable("civmodern.screen.nodes.handshake.tooltip")));
-        handshake.active = nodeApi != null && Minecraft.getInstance().getConnection() != null;
-        addRenderableWidget(handshake);
+        addDependent(handshake);
         this.statusY = offset + 26;
 
         offset += 48;
@@ -164,6 +185,21 @@ public class NodeConfigScreen extends AbstractConfigScreen {
             config.save();
             Minecraft.getInstance().setScreen(parent);
         }).pos(centre, getFooterY(offset)).size(150, 20).build());
+
+        updateDependents();
+    }
+
+    private void addDependent(AbstractWidget widget) {
+        addRenderableWidget(widget);
+        this.dependents.add(widget);
+    }
+
+    private void updateDependents() {
+        boolean enabled = this.config.isNodeFeaturesEnabled();
+        for (AbstractWidget widget : this.dependents) {
+            widget.active = enabled;
+        }
+        this.handshake.active = enabled && nodeApi != null && Minecraft.getInstance().getConnection() != null;
     }
 
     @Override

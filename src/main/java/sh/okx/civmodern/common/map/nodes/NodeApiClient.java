@@ -48,7 +48,9 @@ public class NodeApiClient {
         /** The operator turned the API off, or rejected our version. */
         SERVER_DISABLED,
         /** Nobody answered. Either not a CivNodes server, or the greeting was lost. */
-        TIMED_OUT
+        TIMED_OUT,
+        /** The player turned node features off: the server's greeting goes unanswered. */
+        CLIENT_DISABLED
     }
 
     private final CivMapConfig config;
@@ -83,7 +85,7 @@ public class NodeApiClient {
 
     /** Whether there is anything worth drawing, i.e. the handshake completed on a node world. */
     public boolean isAvailable() {
-        return state == State.READY;
+        return state == State.READY && config.isNodeFeaturesEnabled();
     }
 
     public NodeProtocol.Region getLastRegion() {
@@ -103,6 +105,10 @@ public class NodeApiClient {
     @Subscribe
     public void onJoin(JoinEvent event) {
         reset();
+        if (!config.isNodeFeaturesEnabled()) {
+            state = State.CLIENT_DISABLED;
+            return;
+        }
         // Fabric sends minecraft:register for us just after this event fires, which is what
         // prompts the server's unprompted greeting.
         state = State.AWAITING_HELLO;
@@ -168,6 +174,11 @@ public class NodeApiClient {
      * free to touch client state directly.
      */
     public void handle(byte[] payload) {
+        if (!config.isNodeFeaturesEnabled()) {
+            // Not even the greeting is answered, so the server never starts a session with us.
+            return;
+        }
+
         NodeProtocol.Frame frame;
         try {
             frame = NodeProtocol.decode(payload);
@@ -272,6 +283,24 @@ public class NodeApiClient {
     public void onTick(ClientTickEvent event) {
         long now = System.currentTimeMillis();
 
+        // The switch can flip mid-session from the config screen.
+        if (!config.isNodeFeaturesEnabled()) {
+            if (state != State.CLIENT_DISABLED) {
+                reset();
+                state = State.CLIENT_DISABLED;
+            }
+            return;
+        }
+        if (state == State.CLIENT_DISABLED) {
+            if (Minecraft.getInstance().getConnection() != null) {
+                // The greeting at join went unanswered, so ask the server to greet us again.
+                retryHandshake();
+            } else {
+                state = State.IDLE;
+            }
+            return;
+        }
+
         if ((state == State.AWAITING_HELLO || state == State.AWAITING_ACK) && now > deadline) {
             state = State.TIMED_OUT;
             if (!warnedTimedOut) {
@@ -353,6 +382,8 @@ public class NodeApiClient {
             case SERVER_DISABLED ->
                 Component.translatable("civmodern.nodes.status.disabled").withStyle(ChatFormatting.RED);
             case TIMED_OUT -> Component.translatable("civmodern.nodes.status.timedout").withStyle(ChatFormatting.RED);
+            case CLIENT_DISABLED ->
+                Component.translatable("civmodern.nodes.status.clientdisabled").withStyle(ChatFormatting.GRAY);
         };
     }
 }

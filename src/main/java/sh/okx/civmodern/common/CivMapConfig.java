@@ -83,6 +83,7 @@ public class CivMapConfig {
     private int borderColour;
     private OverlayMode nodeOverlayMode;
     private OverlayMode minimapNodeOverlayMode;
+    private boolean nodeFeaturesEnabled;
     private boolean nodeQueryEnabled;
     private float nodeOverlayOpacity;
     private float nodeTranslucentOpacity;
@@ -173,6 +174,7 @@ public class CivMapConfig {
         // only when the player opts in (the toggle keybind, default Y).
         this.minimapNodeOverlayMode = OverlayMode.fromString(
             properties.getProperty("minimap_node_overlay_mode", "off"));
+        this.nodeFeaturesEnabled = Boolean.parseBoolean(properties.getProperty("node_features_enabled", "true"));
         this.nodeQueryEnabled = Boolean.parseBoolean(properties.getProperty("node_query_enabled", "true"));
         // Renamed from node_overlay_opacity when the overlay became solid by default, so an
         // existing config does not silently keep the old translucent value.
@@ -265,6 +267,7 @@ public class CivMapConfig {
             properties.setProperty("border_colour", Integer.toString(borderColour));
             properties.setProperty("node_overlay_mode", nodeOverlayMode.name().toLowerCase());
             properties.setProperty("minimap_node_overlay_mode", minimapNodeOverlayMode.name().toLowerCase());
+            properties.setProperty("node_features_enabled", Boolean.toString(nodeFeaturesEnabled));
             properties.setProperty("node_query_enabled", Boolean.toString(nodeQueryEnabled));
             properties.setProperty("node_fill_opacity", Float.toString(nodeOverlayOpacity));
             properties.setProperty("node_translucent_opacity", Float.toString(nodeTranslucentOpacity));
@@ -767,6 +770,19 @@ public class CivMapConfig {
 
     public void setMinimapNodeOverlayMode(OverlayMode minimapNodeOverlayMode) {
         this.minimapNodeOverlayMode = minimapNodeOverlayMode;
+    }
+
+    /**
+     * The master switch for everything node related, for the non-CivNodes servers upstream
+     * targets, which have no node API. Off, the mod neither handshakes nor queries, and draws no overlay
+     * anywhere, whatever the other node settings say.
+     */
+    public boolean isNodeFeaturesEnabled() {
+        return nodeFeaturesEnabled;
+    }
+
+    public void setNodeFeaturesEnabled(boolean nodeFeaturesEnabled) {
+        this.nodeFeaturesEnabled = nodeFeaturesEnabled;
     }
 
     /**

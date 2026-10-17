@@ -224,15 +224,17 @@ public class MapScreen extends Screen {
         togglePlayers.setTooltip(Tooltip.create(Component.translatable("civmodern.map.players.tooltip")));
         addRenderableWidget(togglePlayers);
 
-        toggleNodes = new ImageButton(this.width - 30, 58, 20, 20, nodeOverlayImage(), imbg -> {
+        toggleNodes = new ImageButton(this.width - 54, 58, 20, 20, nodeOverlayImage(), imbg -> {
             config.setNodeOverlayMode(config.getNodeOverlayMode().next());
             changedConfig = true;
             updateNodeOverlayButton(imbg);
         });
         updateNodeOverlayButton(toggleNodes);
+        // The setting only changes on the config screen, and init runs again on returning here.
+        toggleNodes.visible = config.isNodeFeaturesEnabled();
         addRenderableWidget(toggleNodes);
 
-        toggleBiomes = new ImageButton(this.width - 54, 58, 20, 20, biomeOverlayImage(), imbg -> {
+        toggleBiomes = new ImageButton(this.width - 30, 58, 20, 20, biomeOverlayImage(), imbg -> {
             config.setBiomeOverlayEnabled(!config.isBiomeOverlayEnabled());
             changedConfig = true;
             updateBiomeOverlayButton(imbg);

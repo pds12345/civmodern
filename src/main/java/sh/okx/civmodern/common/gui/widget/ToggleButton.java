@@ -17,6 +17,8 @@ public class ToggleButton extends Button.Plain {
     private final Component label;
     private final BooleanSupplier valueGetter;
     private final BooleanConsumer valueSetter;
+    private final Component onText;
+    private final Component offText;
 
     public ToggleButton(
         final int x,
@@ -28,10 +30,30 @@ public class ToggleButton extends Button.Plain {
         final Tooltip tooltip,
         final @NotNull CreateNarration createNarration
     ) {
+        this(x, y, width, label, valueGetter, valueSetter, tooltip, createNarration,
+            Component.translatable("civmodern.button.toggle.on"),
+            Component.translatable("civmodern.button.toggle.off"));
+    }
+
+    /** As above, but with the words shown for each state in place of ON and OFF. */
+    public ToggleButton(
+        final int x,
+        final int y,
+        final int width,
+        final @NotNull Component label,
+        final BooleanSupplier valueGetter,
+        final BooleanConsumer valueSetter,
+        final Tooltip tooltip,
+        final @NotNull CreateNarration createNarration,
+        final @NotNull Component onText,
+        final @NotNull Component offText
+    ) {
         super(x, y, width, DEFAULT_HEIGHT, Component.empty(), null, createNarration);
         this.label = Objects.requireNonNull(label);
         this.valueGetter = Objects.requireNonNull(valueGetter);
         this.valueSetter = Objects.requireNonNull(valueSetter);
+        this.onText = Objects.requireNonNull(onText);
+        this.offText = Objects.requireNonNull(offText);
         setMessage(generateLabel());
         setTooltip(tooltip);
     }
@@ -40,9 +62,7 @@ public class ToggleButton extends Button.Plain {
         return Component.translatable(
             "civmodern.button.toggle",
             this.label,
-            this.valueGetter.getAsBoolean()
-                ? Component.translatable("civmodern.button.toggle.on")
-                : Component.translatable("civmodern.button.toggle.off")
+            this.valueGetter.getAsBoolean() ? this.onText : this.offText
         );
     }
 
